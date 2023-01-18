@@ -49,7 +49,7 @@ impl Cpu {
             h: 0x00,
             l: 0x00,
             sp: 0x0000,
-            pc: 0x0100,
+            pc: 0x0000,
 
             mem: vec![0; 0xffff],
         }
@@ -67,9 +67,9 @@ impl Cpu {
         let mut global_sum = 0u16;
         let mut header_sum = 0u8;
 
-		// copy rom and calc checksums
+        // copy rom and calc checksums
         for i in 0..rom.len() {
-			//https://gbdev.io/pandocs/The_Cartridge_Header.html#014d--header-checksum
+            //https://gbdev.io/pandocs/The_Cartridge_Header.html#014d--header-checksum
             if i >= 0x0134 && i <= 0x014c {
                 header_sum = header_sum.wrapping_sub(rom[i]).wrapping_sub(1);
             }
@@ -99,6 +99,95 @@ impl Cpu {
         } else {
             println!("Global checksum passed ({:#04x})", global_sum);
         }
+
+		self.apply_post_boot_state(header_sum);
+    }
+
+	// this is a shortcut around actually running the boot rom
+	// with the exception of video memory state, the rest of the system should be
+	// the same as if the boot rom actually ran
+    fn apply_post_boot_state(&mut self, header_sum: u8) {
+        // update cpu registers and hardware registers
+        // using register state indicated by
+        // https://gbdev.io/pandocs/Power_Up_Sequence.html#cpu-registers
+        // this mimics the state of the machine after the boot rom finishes
+
+		// cpu registers
+        self.a = 0x01;
+        if header_sum != 0 {
+            self.f = 0u8 | 1 << 7 | 1 << 5 | 1 << 4;
+        } else {
+            self.f = 0u8 | 1 << 7;
+        }
+        self.b = 0x00;
+        self.c = 0x13;
+        self.d = 0x00;
+        self.e = 0xd8;
+        self.h = 0x01;
+        self.l = 0x4d;
+        self.pc = 0x100;
+        self.sp = 0xfffe;
+
+		// hardware registers
+		self.mem[0xff00] = 0xcf; //p1
+		self.mem[0xff01] = 0x00; //sb
+		self.mem[0xff02] = 0x7e; //sc
+		self.mem[0xff04] = 0xab; //div
+		self.mem[0xff05] = 0x00; //tima
+		self.mem[0xff06] = 0x00; //tma
+		self.mem[0xff07] = 0xf8; //tac
+		self.mem[0xff0f] = 0xe1; //if
+
+		self.mem[0xff10] = 0x80; //nr10
+		self.mem[0xff11] = 0xbf; //nr11
+		self.mem[0xff12] = 0xf3; //nr12
+		self.mem[0xff13] = 0xff; //nr13
+		self.mem[0xff14] = 0xbf; //nr14
+		self.mem[0xff16] = 0x3f; //nr21
+		self.mem[0xff17] = 0x00; //nr22
+		self.mem[0xff18] = 0xff; //nr23
+		self.mem[0xff19] = 0xbf; //nr24
+		self.mem[0xff1a] = 0x7f; //nr30
+		self.mem[0xff1b] = 0xff; //nr31
+		self.mem[0xff1c] = 0x9f; //nr32
+		self.mem[0xff1d] = 0xff; //nr33
+		self.mem[0xff1e] = 0xbf; //nr34
+		self.mem[0xff20] = 0xff; //nr41
+		self.mem[0xff21] = 0x00; //nr42
+		self.mem[0xff22] = 0x00; //nr43
+		self.mem[0xff23] = 0xbf; //nr44
+		self.mem[0xff24] = 0x77; //nr50
+		self.mem[0xff25] = 0xf3; //nr51
+		self.mem[0xff26] = 0xf1; //nr52
+
+		self.mem[0xff40] = 0x91; //lcdc
+		self.mem[0xff41] = 0x85; //stat
+		self.mem[0xff42] = 0x00; //scy
+		self.mem[0xff43] = 0x00; //scx
+		self.mem[0xff44] = 0x00; //ly
+		self.mem[0xff45] = 0x00; //lyc
+		self.mem[0xff46] = 0xff; //dma
+		self.mem[0xff47] = 0xfc; //bgp
+		self.mem[0xff48] = 0x00; //obp0 (technically uninitialized)
+		self.mem[0xff49] = 0x00; //obp1 (technically uninitialized)
+		self.mem[0xff4a] = 0x00; //wy
+		self.mem[0xff4b] = 0x00; //wx
+
+		self.mem[0xff4d] = 0xff; //key1
+		self.mem[0xff4f] = 0xff; //vbk
+		self.mem[0xff51] = 0xff; //hdma1
+		self.mem[0xff52] = 0xff; //hdma2
+		self.mem[0xff53] = 0xff; //hdma3
+		self.mem[0xff54] = 0xff; //hdma4
+		self.mem[0xff55] = 0xff; //hdma5
+
+		self.mem[0xff56] = 0xff; //rp
+		self.mem[0xff68] = 0xff; //bcps
+		self.mem[0xff69] = 0xff; //bcpd
+		self.mem[0xff6a] = 0xff; //ocps
+		self.mem[0xff6b] = 0xff; //ocpd
+		self.mem[0xff70] = 0xff; //svbk
+		self.mem[0xffff] = 0x00; //ie
     }
 
     fn run(&mut self) {
