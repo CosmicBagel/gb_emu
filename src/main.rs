@@ -227,7 +227,7 @@ impl Cpu {
 
     fn run(&mut self) {
         // there are about 245 unique opcodes
-        // 22 implemented so far
+        // 30 implemented so far
 		// 0 have tests
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
@@ -332,6 +332,55 @@ impl Cpu {
 					let value = self.mem[self.pc + 1];
 					self.a = value;
 					self.pc += 2;
+				}
+				// load from accumulator (indirect BC, DE, HL+, HL-)
+				// 02 12 22 32 A register stored to (BC), (DE), (HL+), or (HL-)
+				// hl+ and hl- means increment or decrement hl AFTER memory read
+				0x02 => {
+					let address = self.get_bc() as usize;
+					self.mem[address] = self.a;
+					self.pc += 1;
+				}
+				0x12 => {
+					let address = self.get_de() as usize;
+					self.mem[address] = self.a;
+					self.pc += 1;
+				}
+				0x22 => {
+					let address = self.get_hl() as usize;
+					self.set_hl(address as u16 + 1);
+					self.mem[address] = self.a;
+					self.pc += 1;
+				}
+				0x32 => {
+					let address = self.get_hl() as usize;
+					self.set_hl(address as u16 - 1);
+					self.mem[address] = self.a;
+					self.pc += 1;
+				}
+				//load to accumulator (indirect BC, DE, HL+, HL-)
+				// 0a 1a 2a 3a (BC), (DE), (HL+), or (HL-) stored to A register
+				0x0a => {
+					let address = self.get_bc() as usize;
+					self.a = self.mem[address];
+					self.pc += 1;
+				}
+				0x1a => {
+					let address = self.get_de() as usize;
+					self.a = self.mem[address];
+					self.pc += 1;
+				}
+				0x2a => {
+					let address = self.get_hl() as usize;
+					self.set_hl(address as u16 + 1);
+					self.a = self.mem[address];
+					self.pc += 1;
+				}
+				0x3a => {
+					let address = self.get_hl() as usize;
+					self.set_hl(address as u16 - 1);
+					self.a = self.mem[address];
+					self.pc += 1;
 				}
                 _ => panic!(
                     "unhandled instruction '0x{:02x}'\n{}",
