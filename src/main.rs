@@ -64,10 +64,40 @@ impl Cpu {
             panic!("Rom is of invalid size ({} bytes)", rom.len());
         }
 
-        // copy_from_slice doesn't work since both vectors need to be the same
-        // size, using a loop instead
+        let mut global_sum = 0u16;
+        let mut header_sum = 0u8;
+
+		// copy rom and calc checksums
         for i in 0..rom.len() {
+			//https://gbdev.io/pandocs/The_Cartridge_Header.html#014d--header-checksum
+            if i >= 0x0134 && i <= 0x014c {
+                header_sum = header_sum.wrapping_sub(rom[i]).wrapping_sub(1);
+            }
+            if i != 0x14e && i != 0x14f {
+                global_sum = global_sum.wrapping_add(rom[i] as u16);
+            }
             self.mem[i] = rom[i];
+        }
+
+        let global_checksum = (self.mem[0x014e] as u16) << 8 | self.mem[0x014f] as u16;
+        let header_checksum = self.mem[0x014d];
+
+        if header_sum != header_checksum {
+            println!(
+                "Warning: header checksum failed (found: {:#02x} expected {:#02x})",
+                header_sum, header_checksum
+            );
+        } else {
+            println!("Header checksum passed ({:#x})", header_sum);
+        }
+
+        if global_sum != global_checksum {
+            println!(
+                "Warning: global checksum failed (found: {:#04x} expected {:#04x})",
+                global_sum, global_checksum
+            );
+        } else {
+            println!("Global checksum passed ({:#04x})", global_sum);
         }
     }
 
