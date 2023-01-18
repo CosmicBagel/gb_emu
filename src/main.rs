@@ -10,9 +10,11 @@ struct Cpu {
     // 	   SP	-	-	Stack Pointer
     // 	   PC	-	-	Program Counter/Pointer
     // 3 bit indicator for registers (0-7)
-    // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => HL, 7 => A
+    // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => (HL), 7 => A
     // note when HL is used, it means the byte the address HL is pointing to (indirect)
+    // that's what the ( ) mean
     a: u8,
+
     //flags (lower 8 bits of AF)
     // 	Bit	Name	Explanation
     // 	7	z		Zero flag
@@ -23,13 +25,10 @@ struct Cpu {
 
     b: u8,
     c: u8,
-
     d: u8,
     e: u8,
-
     h: u8,
     l: u8,
-
     sp: usize,
     pc: usize,
 
@@ -51,8 +50,44 @@ impl Cpu {
             sp: 0x0000,
             pc: 0x0000,
 
-            mem: vec![0; 0xffff],
+            mem: vec![0; 0x10000], //65535 valid memory bytes the full virtual space of 0xffff
         }
+    }
+
+    fn get_af(&self) -> u16 {
+        (self.a as u16) << 8 | self.f as u16
+    }
+
+    fn set_af(&mut self, value: u16) {
+        self.a = (value >> 8) as u8;
+        self.f = value as u8;
+    }
+
+    fn get_bc(&self) -> u16 {
+        (self.b as u16) << 8 | self.c as u16
+    }
+
+    fn set_bc(&mut self, value: u16) {
+        self.b = (value >> 8) as u8;
+        self.c = value as u8;
+    }
+
+    fn get_de(&self) -> u16 {
+        (self.d as u16) << 8 | self.e as u16
+    }
+
+    fn set_de(&mut self, value: u16) {
+        self.d = (value >> 8) as u8;
+        self.e = value as u8;
+    }
+
+    fn get_hl(&self) -> u16 {
+        (self.h as u16) << 8 | self.l as u16
+    }
+
+    fn set_hl(&mut self, value: u16) {
+        self.h = (value >> 8) as u8;
+        self.l = value as u8;
     }
 
     fn load_rom(&mut self, filename: &str) {
@@ -100,19 +135,19 @@ impl Cpu {
             println!("Global checksum passed ({:#04x})", global_sum);
         }
 
-		self.apply_post_boot_state(header_sum);
+        self.apply_post_boot_state(header_sum);
     }
 
-	// this is a shortcut around actually running the boot rom
-	// with the exception of video memory state, the rest of the system should be
-	// the same as if the boot rom actually ran
+    // this is a shortcut around actually running the boot rom
+    // with the exception of video memory state, the rest of the system should be
+    // the same as if the boot rom actually ran
     fn apply_post_boot_state(&mut self, header_sum: u8) {
         // update cpu registers and hardware registers
         // using register state indicated by
         // https://gbdev.io/pandocs/Power_Up_Sequence.html#cpu-registers
         // this mimics the state of the machine after the boot rom finishes
 
-		// cpu registers
+        // cpu registers
         self.a = 0x01;
         if header_sum != 0 {
             self.f = 0u8 | 1 << 7 | 1 << 5 | 1 << 4;
@@ -128,69 +163,72 @@ impl Cpu {
         self.pc = 0x100;
         self.sp = 0xfffe;
 
-		// hardware registers
-		self.mem[0xff00] = 0xcf; //p1
-		self.mem[0xff01] = 0x00; //sb
-		self.mem[0xff02] = 0x7e; //sc
-		self.mem[0xff04] = 0xab; //div
-		self.mem[0xff05] = 0x00; //tima
-		self.mem[0xff06] = 0x00; //tma
-		self.mem[0xff07] = 0xf8; //tac
-		self.mem[0xff0f] = 0xe1; //if
+        // hardware registers
+        self.mem[0xff00] = 0xcf; //p1
+        self.mem[0xff01] = 0x00; //sb
+        self.mem[0xff02] = 0x7e; //sc
+        self.mem[0xff04] = 0xab; //div
+        self.mem[0xff05] = 0x00; //tima
+        self.mem[0xff06] = 0x00; //tma
+        self.mem[0xff07] = 0xf8; //tac
+        self.mem[0xff0f] = 0xe1; //if
 
-		self.mem[0xff10] = 0x80; //nr10
-		self.mem[0xff11] = 0xbf; //nr11
-		self.mem[0xff12] = 0xf3; //nr12
-		self.mem[0xff13] = 0xff; //nr13
-		self.mem[0xff14] = 0xbf; //nr14
-		self.mem[0xff16] = 0x3f; //nr21
-		self.mem[0xff17] = 0x00; //nr22
-		self.mem[0xff18] = 0xff; //nr23
-		self.mem[0xff19] = 0xbf; //nr24
-		self.mem[0xff1a] = 0x7f; //nr30
-		self.mem[0xff1b] = 0xff; //nr31
-		self.mem[0xff1c] = 0x9f; //nr32
-		self.mem[0xff1d] = 0xff; //nr33
-		self.mem[0xff1e] = 0xbf; //nr34
-		self.mem[0xff20] = 0xff; //nr41
-		self.mem[0xff21] = 0x00; //nr42
-		self.mem[0xff22] = 0x00; //nr43
-		self.mem[0xff23] = 0xbf; //nr44
-		self.mem[0xff24] = 0x77; //nr50
-		self.mem[0xff25] = 0xf3; //nr51
-		self.mem[0xff26] = 0xf1; //nr52
+        self.mem[0xff10] = 0x80; //nr10
+        self.mem[0xff11] = 0xbf; //nr11
+        self.mem[0xff12] = 0xf3; //nr12
+        self.mem[0xff13] = 0xff; //nr13
+        self.mem[0xff14] = 0xbf; //nr14
+        self.mem[0xff16] = 0x3f; //nr21
+        self.mem[0xff17] = 0x00; //nr22
+        self.mem[0xff18] = 0xff; //nr23
+        self.mem[0xff19] = 0xbf; //nr24
+        self.mem[0xff1a] = 0x7f; //nr30
+        self.mem[0xff1b] = 0xff; //nr31
+        self.mem[0xff1c] = 0x9f; //nr32
+        self.mem[0xff1d] = 0xff; //nr33
+        self.mem[0xff1e] = 0xbf; //nr34
+        self.mem[0xff20] = 0xff; //nr41
+        self.mem[0xff21] = 0x00; //nr42
+        self.mem[0xff22] = 0x00; //nr43
+        self.mem[0xff23] = 0xbf; //nr44
+        self.mem[0xff24] = 0x77; //nr50
+        self.mem[0xff25] = 0xf3; //nr51
+        self.mem[0xff26] = 0xf1; //nr52
 
-		self.mem[0xff40] = 0x91; //lcdc
-		self.mem[0xff41] = 0x85; //stat
-		self.mem[0xff42] = 0x00; //scy
-		self.mem[0xff43] = 0x00; //scx
-		self.mem[0xff44] = 0x00; //ly
-		self.mem[0xff45] = 0x00; //lyc
-		self.mem[0xff46] = 0xff; //dma
-		self.mem[0xff47] = 0xfc; //bgp
-		self.mem[0xff48] = 0x00; //obp0 (technically uninitialized)
-		self.mem[0xff49] = 0x00; //obp1 (technically uninitialized)
-		self.mem[0xff4a] = 0x00; //wy
-		self.mem[0xff4b] = 0x00; //wx
+        self.mem[0xff40] = 0x91; //lcdc
+        self.mem[0xff41] = 0x85; //stat
+        self.mem[0xff42] = 0x00; //scy
+        self.mem[0xff43] = 0x00; //scx
+        self.mem[0xff44] = 0x00; //ly
+        self.mem[0xff45] = 0x00; //lyc
+        self.mem[0xff46] = 0xff; //dma
+        self.mem[0xff47] = 0xfc; //bgp
+        self.mem[0xff48] = 0x00; //obp0 (technically uninitialized)
+        self.mem[0xff49] = 0x00; //obp1 (technically uninitialized)
+        self.mem[0xff4a] = 0x00; //wy
+        self.mem[0xff4b] = 0x00; //wx
 
-		self.mem[0xff4d] = 0xff; //key1
-		self.mem[0xff4f] = 0xff; //vbk
-		self.mem[0xff51] = 0xff; //hdma1
-		self.mem[0xff52] = 0xff; //hdma2
-		self.mem[0xff53] = 0xff; //hdma3
-		self.mem[0xff54] = 0xff; //hdma4
-		self.mem[0xff55] = 0xff; //hdma5
+        self.mem[0xff4d] = 0xff; //key1
+        self.mem[0xff4f] = 0xff; //vbk
+        self.mem[0xff51] = 0xff; //hdma1
+        self.mem[0xff52] = 0xff; //hdma2
+        self.mem[0xff53] = 0xff; //hdma3
+        self.mem[0xff54] = 0xff; //hdma4
+        self.mem[0xff55] = 0xff; //hdma5
 
-		self.mem[0xff56] = 0xff; //rp
-		self.mem[0xff68] = 0xff; //bcps
-		self.mem[0xff69] = 0xff; //bcpd
-		self.mem[0xff6a] = 0xff; //ocps
-		self.mem[0xff6b] = 0xff; //ocpd
-		self.mem[0xff70] = 0xff; //svbk
-		self.mem[0xffff] = 0x00; //ie
+        self.mem[0xff56] = 0xff; //rp
+        self.mem[0xff68] = 0xff; //bcps
+        self.mem[0xff69] = 0xff; //bcpd
+        self.mem[0xff6a] = 0xff; //ocps
+        self.mem[0xff6b] = 0xff; //ocpd
+        self.mem[0xff70] = 0xff; //svbk
+        self.mem[0xffff] = 0x00; //ie
     }
 
     fn run(&mut self) {
+        // there are about 245 unique opcodes
+        // 22 implemented so far
+		// 0 have tests
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
             // unless there's a reason to allow it
@@ -199,13 +237,12 @@ impl Cpu {
                 exit(0);
             }
 
-            println!("{:#02x}: {:02x}", self.pc, self.mem[self.pc]);
-
-            match self.mem[self.pc] {
+            let opcode = self.mem[self.pc];
+            println!("{:#02x}: {:02x}", self.pc, opcode);
+            match opcode {
                 //nop
                 0x00 => {
                     self.pc += 1;
-                    continue;
                 }
                 // jump
                 0xc3 => {
@@ -213,7 +250,89 @@ impl Cpu {
                         ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
                     self.pc = target as usize;
                 }
-                //xor
+                //xor register
+                0xa8..=0xaf => {
+                    // xor the given register 0-7 with register A
+                    let lower_bits = opcode & 0b0000_0111;
+                    let mut value = 0u8;
+                    // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => (HL), 7 => A
+                    match lower_bits {
+                        0 => value = self.b,
+                        1 => value = self.c,
+                        2 => value = self.d,
+                        3 => value = self.e,
+                        4 => value = self.h,
+                        5 => value = self.l,
+                        6 => value = self.mem[self.get_hl() as usize],
+                        7 => value = self.a,
+                        _ => {}
+                    }
+                    self.a = self.a ^ value;
+                    self.pc += 1;
+                }
+                // load 16bit program value to register (little endian)
+                0x01 => {
+                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+                    self.set_bc(value);
+                    self.pc += 3;
+                }
+                0x11 => {
+                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+                    self.set_de(value);
+                    self.pc += 3;
+                }
+                0x21 => {
+                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+                    self.set_hl(value);
+                    self.pc += 3;
+                }
+                0x31 => {
+                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+                    self.sp = value as usize;
+                    self.pc += 3;
+                }
+				// 8 bit load program value to register
+				0x06 => {
+					let value = self.mem[self.pc + 1];
+					self.b = value;
+					self.pc += 2;
+				}
+				0x0e => {
+					let value = self.mem[self.pc + 1];
+					self.c = value;
+					self.pc += 2;
+				}
+				0x16 => {
+					let value = self.mem[self.pc + 1];
+					self.d = value;
+					self.pc += 2;
+				}
+				0x1e => {
+					let value = self.mem[self.pc + 1];
+					self.e = value;
+					self.pc += 2;
+				}
+				0x26 => {
+					let value = self.mem[self.pc + 1];
+					self.h = value;
+					self.pc += 2;
+				}
+				0x2e => {
+					let value = self.mem[self.pc + 1];
+					self.l = value;
+					self.pc += 2;
+				}
+				0x36 => { // load value to hl address
+					let value = self.mem[self.pc + 1];
+					let hl = self.get_hl() as usize;
+					self.mem[hl] = value;
+					self.pc += 2;
+				}
+				0x3e => {
+					let value = self.mem[self.pc + 1];
+					self.a = value;
+					self.pc += 2;
+				}
                 _ => panic!(
                     "unhandled instruction '0x{:02x}'\n{}",
                     self.mem[self.pc],
