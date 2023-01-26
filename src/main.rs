@@ -1,4 +1,5 @@
-use std::{fs::read, process::exit};
+use spin_sleep;
+use std::{fs::read, process::exit, thread, time};
 
 struct Cpu {
     //registers
@@ -36,6 +37,57 @@ struct Cpu {
     mem: Vec<u8>,
 }
 
+fn nop(cpu: &mut Cpu, opcode: u8) -> CycleCount {
+    println!("no op");
+    cpu.pc += 1;
+    4
+}
+
+fn not_implemented(cpu: &mut Cpu, opcode: u8) -> CycleCount {
+    panic!("cpu function not implemented, opcode {:02x}", opcode);
+}
+
+type CycleCount = u8;
+type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 255];
+
+fn main() {
+    /*
+    - load rom
+        - actual rom starts at 0x0100 usually a nop followed by a jmp to 0x0150
+        - check if cgb rom (only compatible with gb roms)
+            - 0x0143 => 0x80 game supports gbc, but is backwards compatible
+                        0xC0 game only supports gbc (hardware ignores bit 6 so
+                            this is the same as 0x80)
+                        values with bit 7 set either 2 or 3 will switch the gameboy
+                            to  PGB mode, which is not understood or documented currently
+        - header checksum 0x014D
+        - checksum 0x014E-0x14F 16 bit big endian => literal sum of all bytes on the rom, except the
+            checksum bytes
+    - opcodes use little endian, little endian in memory as well
+    - registers are always big endian? (program counter, stack pointer?)
+        endianness does not apply to registers (apparently)
+
+    - registers can be accessed by single byte opcodes
+        0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => HL, 7 => A
+        seems to work this way for all 8 bit arithmetic opcodes where you can specify a register
+
+    - process instructions byte by byte? front to back?
+        - rom memory addressing?
+    - registers
+        - general registers
+        - timer and divider registers
+    - interrupts (can be disabled!)
+
+    - some things might not work if expecting state left over from boot process
+
+     */
+
+    let filename = "cpu_instrs.gb";
+    let mut cpu = Cpu::new();
+    cpu.load_rom(filename);
+    cpu.run();
+}
+
 impl Cpu {
     fn new() -> Cpu {
         Cpu {
@@ -52,42 +104,6 @@ impl Cpu {
 
             mem: vec![0; 0x10000], //65535 valid memory bytes the full virtual space of 0xffff
         }
-    }
-
-    fn get_af(&self) -> u16 {
-        (self.a as u16) << 8 | self.f as u16
-    }
-
-    fn set_af(&mut self, value: u16) {
-        self.a = (value >> 8) as u8;
-        self.f = value as u8;
-    }
-
-    fn get_bc(&self) -> u16 {
-        (self.b as u16) << 8 | self.c as u16
-    }
-
-    fn set_bc(&mut self, value: u16) {
-        self.b = (value >> 8) as u8;
-        self.c = value as u8;
-    }
-
-    fn get_de(&self) -> u16 {
-        (self.d as u16) << 8 | self.e as u16
-    }
-
-    fn set_de(&mut self, value: u16) {
-        self.d = (value >> 8) as u8;
-        self.e = value as u8;
-    }
-
-    fn get_hl(&self) -> u16 {
-        (self.h as u16) << 8 | self.l as u16
-    }
-
-    fn set_hl(&mut self, value: u16) {
-        self.h = (value >> 8) as u8;
-        self.l = value as u8;
     }
 
     fn load_rom(&mut self, filename: &str) {
@@ -136,6 +152,265 @@ impl Cpu {
         }
 
         self.apply_post_boot_state(header_sum);
+    }
+
+    fn run(&mut self) {
+        let bytecode_table: BytecodeTable = Cpu::build_bytecode_table();
+
+        //**timing stuff**
+        //4.194304 MHz
+        //238.4185791015625 nanoseconds per cycle (ns)
+        //about 4194.304 cycles in 1ms
+        //20972 is about 5ms -> we'll use this as cycles per sleep
+        //1 nop takes 4 cycles
+        let cycle_duration = time::Duration::from_nanos(238);
+        let cycles_per_sleep = 20_000u64;
+        let mut cycle_count_since_last_sleep = 0u64;
+
+        bytecode_table[0x00](self, 0x00);
+        bytecode_table[0x01](self, 0x01);
+
+        // there are about 245 unique opcodes
+        // 30 implemented so far
+        // 0 have tests
+        loop {
+            // 0x7fff is the highest rom address, we'll halt on this
+            // unless there's a reason to allow it
+            if self.pc > 0x7fff {
+                println!("attempted to execute outside of rom space");
+                exit(0);
+            }
+
+            let opcode = self.mem[self.pc];
+            println!("{:#02x}: {:02x}", self.pc, opcode);
+            match opcode {
+                //nop
+                0x00 => {
+                    self.pc += 1;
+                }
+                // jump
+                0xc3 => {
+                    let target =
+                        ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+                    self.pc = target as usize;
+                }
+                //xor register
+                0xa8..=0xaf => {
+                    // xor the given register 0-7 with register A
+                    let lower_bits = opcode & 0b0000_0111;
+                    let mut value = 0u8;
+                    // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => (HL), 7 => A
+                    match lower_bits {
+                        0 => value = self.b,
+                        1 => value = self.c,
+                        2 => value = self.d,
+                        3 => value = self.e,
+                        4 => value = self.h,
+                        5 => value = self.l,
+                        6 => value = self.mem[self.get_hl() as usize],
+                        7 => value = self.a,
+                        _ => {}
+                    }
+                    self.a = self.a ^ value;
+                    self.pc += 1;
+                }
+                // load 16bit program value to register (little endian)
+                0x01 => {
+                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+                    self.set_bc(value);
+                    self.pc += 3;
+                }
+                0x11 => {
+                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+                    self.set_de(value);
+                    self.pc += 3;
+                }
+                0x21 => {
+                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+                    self.set_hl(value);
+                    self.pc += 3;
+                }
+                0x31 => {
+                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+                    self.sp = value as usize;
+                    self.pc += 3;
+                }
+                // 8 bit load program value to register
+                0x06 => {
+                    let value = self.mem[self.pc + 1];
+                    self.b = value;
+                    self.pc += 2;
+                }
+                0x0e => {
+                    let value = self.mem[self.pc + 1];
+                    self.c = value;
+                    self.pc += 2;
+                }
+                0x16 => {
+                    let value = self.mem[self.pc + 1];
+                    self.d = value;
+                    self.pc += 2;
+                }
+                0x1e => {
+                    let value = self.mem[self.pc + 1];
+                    self.e = value;
+                    self.pc += 2;
+                }
+                0x26 => {
+                    let value = self.mem[self.pc + 1];
+                    self.h = value;
+                    self.pc += 2;
+                }
+                0x2e => {
+                    let value = self.mem[self.pc + 1];
+                    self.l = value;
+                    self.pc += 2;
+                }
+                0x36 => {
+                    // load value to hl address
+                    let value = self.mem[self.pc + 1];
+                    let hl = self.get_hl() as usize;
+                    self.mem[hl] = value;
+                    self.pc += 2;
+                }
+                0x3e => {
+                    let value = self.mem[self.pc + 1];
+                    self.a = value;
+                    self.pc += 2;
+                }
+                // load from accumulator (indirect BC, DE, HL+, HL-)
+                // 02 12 22 32 A register stored to (BC), (DE), (HL+), or (HL-)
+                // hl+ and hl- means increment or decrement hl AFTER memory read
+                0x02 => {
+                    let address = self.get_bc() as usize;
+                    self.mem[address] = self.a;
+                    self.pc += 1;
+                }
+                0x12 => {
+                    let address = self.get_de() as usize;
+                    self.mem[address] = self.a;
+                    self.pc += 1;
+                }
+                0x22 => {
+                    let address = self.get_hl() as usize;
+                    self.set_hl(address as u16 + 1);
+                    self.mem[address] = self.a;
+                    self.pc += 1;
+                }
+                0x32 => {
+                    let address = self.get_hl() as usize;
+                    self.set_hl(address as u16 - 1);
+                    self.mem[address] = self.a;
+                    self.pc += 1;
+                }
+                //load to accumulator (indirect BC, DE, HL+, HL-)
+                // 0a 1a 2a 3a (BC), (DE), (HL+), or (HL-) stored to A register
+                0x0a => {
+                    let address = self.get_bc() as usize;
+                    self.a = self.mem[address];
+                    self.pc += 1;
+                }
+                0x1a => {
+                    let address = self.get_de() as usize;
+                    self.a = self.mem[address];
+                    self.pc += 1;
+                }
+                0x2a => {
+                    let address = self.get_hl() as usize;
+                    self.set_hl(address as u16 + 1);
+                    self.a = self.mem[address];
+                    self.pc += 1;
+                }
+                0x3a => {
+                    let address = self.get_hl() as usize;
+                    self.set_hl(address as u16 - 1);
+                    self.a = self.mem[address];
+                    self.pc += 1;
+                }
+                _ => panic!(
+                    "unhandled instruction '0x{:02x}'\n{}",
+                    self.mem[self.pc],
+                    self.dump_registers()
+                ),
+            }
+
+            //todo:
+            // should be using a timer, subtracting time used to actually process instruction
+            // then only spin waiting for the time remaining
+            // always use multiples of 4 cycles, this will make timing a bit easier
+            // all instructions take multiples of 4 cycles
+            spin_sleep::sleep(cycle_duration * 4);
+            cycle_count_since_last_sleep += 4;
+
+            // this is so that the emulator doesn't hog the cpu and get punished 
+            // by the scheduler
+            if cycle_count_since_last_sleep >= cycles_per_sleep {
+                cycle_count_since_last_sleep = 0;
+                thread::yield_now();
+            }
+        }
+    }
+
+    fn zip(&mut self, opcode: u8) -> CycleCount {
+        println!("zip");
+        self.pc += 1;
+        4
+    }
+
+    fn build_bytecode_table() -> BytecodeTable {
+        let mut bytecode_table: BytecodeTable = [not_implemented; 255];
+        bytecode_table[0x00] = nop;
+        bytecode_table[0x01] = Cpu::zip;
+
+        bytecode_table
+    }
+
+    fn get_af(&self) -> u16 {
+        (self.a as u16) << 8 | self.f as u16
+    }
+
+    fn set_af(&mut self, value: u16) {
+        self.a = (value >> 8) as u8;
+        self.f = value as u8;
+    }
+
+    fn get_bc(&self) -> u16 {
+        (self.b as u16) << 8 | self.c as u16
+    }
+
+    fn set_bc(&mut self, value: u16) {
+        self.b = (value >> 8) as u8;
+        self.c = value as u8;
+    }
+
+    fn get_de(&self) -> u16 {
+        (self.d as u16) << 8 | self.e as u16
+    }
+
+    fn set_de(&mut self, value: u16) {
+        self.d = (value >> 8) as u8;
+        self.e = value as u8;
+    }
+
+    fn get_hl(&self) -> u16 {
+        (self.h as u16) << 8 | self.l as u16
+    }
+
+    fn set_hl(&mut self, value: u16) {
+        self.h = (value >> 8) as u8;
+        self.l = value as u8;
+    }
+
+    fn dump_registers(&self) -> String {
+        format!(
+            "A: {:#02x}\tF: {:#02x}
+B: {:#02x}\tC: {:#02x}
+D: {:#02x}\tE: {:#02x}
+H: {:#02x}\tL: {:#02x}
+SP: {:#x}
+PC: {:#x}",
+            self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc
+        )
     }
 
     // this is a shortcut around actually running the boot rom
@@ -224,220 +499,4 @@ impl Cpu {
         self.mem[0xff70] = 0xff; //svbk
         self.mem[0xffff] = 0x00; //ie
     }
-
-    fn run(&mut self) {
-        // there are about 245 unique opcodes
-        // 30 implemented so far
-		// 0 have tests
-        loop {
-            // 0x7fff is the highest rom address, we'll halt on this
-            // unless there's a reason to allow it
-            if self.pc > 0x7fff {
-                println!("attempted to execute outside of rom space");
-                exit(0);
-            }
-
-            let opcode = self.mem[self.pc];
-            println!("{:#02x}: {:02x}", self.pc, opcode);
-            match opcode {
-                //nop
-                0x00 => {
-                    self.pc += 1;
-                }
-                // jump
-                0xc3 => {
-                    let target =
-                        ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
-                    self.pc = target as usize;
-                }
-                //xor register
-                0xa8..=0xaf => {
-                    // xor the given register 0-7 with register A
-                    let lower_bits = opcode & 0b0000_0111;
-                    let mut value = 0u8;
-                    // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => (HL), 7 => A
-                    match lower_bits {
-                        0 => value = self.b,
-                        1 => value = self.c,
-                        2 => value = self.d,
-                        3 => value = self.e,
-                        4 => value = self.h,
-                        5 => value = self.l,
-                        6 => value = self.mem[self.get_hl() as usize],
-                        7 => value = self.a,
-                        _ => {}
-                    }
-                    self.a = self.a ^ value;
-                    self.pc += 1;
-                }
-                // load 16bit program value to register (little endian)
-                0x01 => {
-                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
-                    self.set_bc(value);
-                    self.pc += 3;
-                }
-                0x11 => {
-                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
-                    self.set_de(value);
-                    self.pc += 3;
-                }
-                0x21 => {
-                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
-                    self.set_hl(value);
-                    self.pc += 3;
-                }
-                0x31 => {
-                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
-                    self.sp = value as usize;
-                    self.pc += 3;
-                }
-				// 8 bit load program value to register
-				0x06 => {
-					let value = self.mem[self.pc + 1];
-					self.b = value;
-					self.pc += 2;
-				}
-				0x0e => {
-					let value = self.mem[self.pc + 1];
-					self.c = value;
-					self.pc += 2;
-				}
-				0x16 => {
-					let value = self.mem[self.pc + 1];
-					self.d = value;
-					self.pc += 2;
-				}
-				0x1e => {
-					let value = self.mem[self.pc + 1];
-					self.e = value;
-					self.pc += 2;
-				}
-				0x26 => {
-					let value = self.mem[self.pc + 1];
-					self.h = value;
-					self.pc += 2;
-				}
-				0x2e => {
-					let value = self.mem[self.pc + 1];
-					self.l = value;
-					self.pc += 2;
-				}
-				0x36 => { // load value to hl address
-					let value = self.mem[self.pc + 1];
-					let hl = self.get_hl() as usize;
-					self.mem[hl] = value;
-					self.pc += 2;
-				}
-				0x3e => {
-					let value = self.mem[self.pc + 1];
-					self.a = value;
-					self.pc += 2;
-				}
-				// load from accumulator (indirect BC, DE, HL+, HL-)
-				// 02 12 22 32 A register stored to (BC), (DE), (HL+), or (HL-)
-				// hl+ and hl- means increment or decrement hl AFTER memory read
-				0x02 => {
-					let address = self.get_bc() as usize;
-					self.mem[address] = self.a;
-					self.pc += 1;
-				}
-				0x12 => {
-					let address = self.get_de() as usize;
-					self.mem[address] = self.a;
-					self.pc += 1;
-				}
-				0x22 => {
-					let address = self.get_hl() as usize;
-					self.set_hl(address as u16 + 1);
-					self.mem[address] = self.a;
-					self.pc += 1;
-				}
-				0x32 => {
-					let address = self.get_hl() as usize;
-					self.set_hl(address as u16 - 1);
-					self.mem[address] = self.a;
-					self.pc += 1;
-				}
-				//load to accumulator (indirect BC, DE, HL+, HL-)
-				// 0a 1a 2a 3a (BC), (DE), (HL+), or (HL-) stored to A register
-				0x0a => {
-					let address = self.get_bc() as usize;
-					self.a = self.mem[address];
-					self.pc += 1;
-				}
-				0x1a => {
-					let address = self.get_de() as usize;
-					self.a = self.mem[address];
-					self.pc += 1;
-				}
-				0x2a => {
-					let address = self.get_hl() as usize;
-					self.set_hl(address as u16 + 1);
-					self.a = self.mem[address];
-					self.pc += 1;
-				}
-				0x3a => {
-					let address = self.get_hl() as usize;
-					self.set_hl(address as u16 - 1);
-					self.a = self.mem[address];
-					self.pc += 1;
-				}
-                _ => panic!(
-                    "unhandled instruction '0x{:02x}'\n{}",
-                    self.mem[self.pc],
-                    self.dump_registers()
-                ),
-            }
-        }
-    }
-
-    fn dump_registers(&self) -> String {
-        format!(
-            "A: {:#02x}\tF: {:#02x}
-B: {:#02x}\tC: {:#02x}
-D: {:#02x}\tE: {:#02x}
-H: {:#02x}\tL: {:#02x}
-SP: {:#x}
-PC: {:#x}",
-            self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc
-        )
-    }
-}
-
-fn main() {
-    /*
-    - load rom
-        - actual rom starts at 0x0100 usually a nop followed by a jmp to 0x0150
-        - check if cgb rom (only compatible with gb roms)
-            - 0x0143 => 0x80 game supports gbc, but is backwards compatible
-                        0xC0 game only supports gbc (hardware ignores bit 6 so
-                            this is the same as 0x80)
-                        values with bit 7 set either 2 or 3 will switch the gameboy
-                            to  PGB mode, which is not understood or documented currently
-        - header checksum 0x014D
-        - checksum 0x014E-0x14F 16 bit big endian => literal sum of all bytes on the rom, except the
-            checksum bytes
-    - opcodes use little endian, little endian in memory as well
-    - registers are always big endian? (program counter, stack pointer?)
-        endianness does not apply to registers (apparently)
-
-    - registers can be accessed by single byte opcodes
-        0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => HL, 7 => A
-        seems to work this way for all 8 bit arithmetic opcodes where you can specify a register
-
-    - process instructions byte by byte? front to back?
-        - rom memory addressing?
-    - registers
-        - general registers
-        - timer and divider registers
-    - interrupts (can be disabled!)
-
-    - some things might not work if expecting state left over from boot process
-
-     */
-
-    let filename = "tetris.gb";
-    let mut cpu = Cpu::new();
-    cpu.load_rom(filename);
-    cpu.run();
 }

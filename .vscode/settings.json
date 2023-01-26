@@ -1,7 +1,20 @@
 {
     "cSpell.words": [
+        "bcpd",
+        "bcps",
+        "BYTECODE",
         "egui",
+        "endianness",
+        "gameboy",
+        "hdma",
+        "instrs",
+        "lcdc",
+        "nanos",
+        "ocpd",
+        "ocps",
+        "svbk",
         "tetris",
+        "tima",
         "wgpu",
         "winit"
     ]

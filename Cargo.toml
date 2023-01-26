@@ -17,3 +17,5 @@ egui-winit = { version = "*", default-features = false, features = ["links"]}
 
 log = "*"
 env_logger = "*"
+
+spin_sleep = "1.1.1"
