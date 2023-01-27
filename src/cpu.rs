@@ -1,6 +1,9 @@
 use spin_sleep;
 use std::{fs::read, process::exit, thread, time};
 
+pub type CycleCount = u32;
+type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 255];
+
 pub struct Cpu {
     //registers
     // 16-bit	Hi	Lo	Name/Function
@@ -35,10 +38,11 @@ pub struct Cpu {
 
     // memory
     mem: Vec<u8>,
-}
 
-pub type CycleCount = u8;
-type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 255];
+    //opcode tables
+    primary_bytecode_table: BytecodeTable,
+    cb_bytecode_table: BytecodeTable,
+}
 
 impl Cpu {
     pub fn new() -> Cpu {
@@ -55,6 +59,8 @@ impl Cpu {
             pc: 0x0000,
 
             mem: vec![0; 0x10000], //65535 valid memory bytes the full virtual space of 0xffff
+            primary_bytecode_table: Cpu::build_bytecode_table(),
+            cb_bytecode_table: Cpu::build_cb_bytecode_table(),
         }
     }
 
@@ -107,8 +113,6 @@ impl Cpu {
     }
 
     pub fn run(&mut self) {
-        let bytecode_table: BytecodeTable = Cpu::build_bytecode_table();
-
         //**timing stuff**
         //4.194304 MHz
         //238.4185791015625 nanoseconds per cycle (ns)
@@ -116,11 +120,8 @@ impl Cpu {
         //20972 is about 5ms -> we'll use this as cycles per sleep
         //1 nop takes 4 cycles
         let cycle_duration = time::Duration::from_nanos(238);
-        let cycles_per_sleep = 20_000u64;
-        let mut cycle_count_since_last_sleep = 0u64;
-
-        // bytecode_table[0x00](self, 0x00);
-        // bytecode_table[0x01](self, 0x01);
+        let cycles_per_sleep = 20_000u32;
+        let mut cycle_count_since_last_sleep = 0u32;
 
         // there are about 245 unique opcodes
         // 30 implemented so far
@@ -135,37 +136,27 @@ impl Cpu {
 
             let opcode = self.mem[self.pc];
             println!("{:#02x}: {:02x}", self.pc, opcode);
+            //execute instruction
+            let cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
+
+            //todo:
+            // should be using a timer, subtracting time used to actually process instruction
+            // then only spin waiting for the time remaining
+            // always use multiples of 4 cycles, this will make timing a bit easier
+            // all instructions take multiples of 4 cycles
+            spin_sleep::sleep(cycle_duration * cycle_cost);
+            cycle_count_since_last_sleep += cycle_cost;
+
+            // this is so that the emulator doesn't hog the cpu and get punished
+            // by the scheduler
+            if cycle_count_since_last_sleep >= cycles_per_sleep {
+                cycle_count_since_last_sleep = 0;
+                thread::yield_now();
+            }
+
+            continue;
+
             match opcode {
-                //nop
-                0x00 => {
-                    self.pc += 1;
-                }
-                // jump
-                0xc3 => {
-                    let target =
-                        ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
-                    self.pc = target as usize;
-                }
-                //xor register
-                0xa8..=0xaf => {
-                    // xor the given register 0-7 with register A
-                    let lower_bits = opcode & 0b0000_0111;
-                    let mut value = 0u8;
-                    // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => (HL), 7 => A
-                    match lower_bits {
-                        0 => value = self.b,
-                        1 => value = self.c,
-                        2 => value = self.d,
-                        3 => value = self.e,
-                        4 => value = self.h,
-                        5 => value = self.l,
-                        6 => value = self.mem[self.get_hl() as usize],
-                        7 => value = self.a,
-                        _ => {}
-                    }
-                    self.a = self.a ^ value;
-                    self.pc += 1;
-                }
                 // load 16bit program value to register (little endian)
                 0x01 => {
                     let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
@@ -284,21 +275,6 @@ impl Cpu {
                     self.mem[self.pc],
                     self.dump_registers()
                 ),
-            }
-
-            //todo:
-            // should be using a timer, subtracting time used to actually process instruction
-            // then only spin waiting for the time remaining
-            // always use multiples of 4 cycles, this will make timing a bit easier
-            // all instructions take multiples of 4 cycles
-            spin_sleep::sleep(cycle_duration * 4);
-            cycle_count_since_last_sleep += 4;
-
-            // this is so that the emulator doesn't hog the cpu and get punished
-            // by the scheduler
-            if cycle_count_since_last_sleep >= cycles_per_sleep {
-                cycle_count_since_last_sleep = 0;
-                thread::yield_now();
             }
         }
     }
@@ -439,25 +415,114 @@ PC: {:#x}",
     }
 
     fn build_bytecode_table() -> BytecodeTable {
-        let mut bytecode_table: BytecodeTable = [Cpu::not_implemented; 255];
-        bytecode_table[0x00] = Cpu::nop;
-        bytecode_table[0x01] = Cpu::zip;
+        // initialize table with all opcodes as not_implemented
+        let mut table: BytecodeTable = [Cpu::not_implemented; 255];
 
-        bytecode_table
+        // invalid opcodes (there are 11 invalid opcodes)
+        table[0xd3] = Cpu::invalid_opcode;
+        table[0xdb] = Cpu::invalid_opcode;
+        table[0xdd] = Cpu::invalid_opcode;
+
+        table[0xe3] = Cpu::invalid_opcode;
+        table[0xe4] = Cpu::invalid_opcode;
+        table[0xeb] = Cpu::invalid_opcode;
+        table[0xec] = Cpu::invalid_opcode;
+        table[0xed] = Cpu::invalid_opcode;
+
+        table[0xf4] = Cpu::invalid_opcode;
+        table[0xfc] = Cpu::invalid_opcode;
+        table[0xfd] = Cpu::invalid_opcode;
+
+        // actual opcodes
+        table[0x00] = Cpu::nop;
+        table[0xc3] = Cpu::jump;
+
+        table[0xa8] = Cpu::xor_8bit_a_b;
+        table[0xa9] = Cpu::xor_8bit_a_c;
+        table[0xaa] = Cpu::xor_8bit_a_d;
+        table[0xab] = Cpu::xor_8bit_a_e;
+        table[0xac] = Cpu::xor_8bit_a_h;
+        table[0xad] = Cpu::xor_8bit_a_l;
+        table[0xae] = Cpu::xor_8bit_a_hl_indirect;
+        table[0xaf] = Cpu::xor_8bit_a_a;
+
+        table
     }
 
-    fn nop(&mut self, opcode: u8) -> CycleCount {
-        println!("no op");
+    fn build_cb_bytecode_table() -> BytecodeTable {
+        // initialize table with all opcodes as not_implemented
+        let mut table: BytecodeTable = [Cpu::not_implemented; 255];
+
+        table
+    }
+
+    fn not_implemented(&mut self, opcode: u8) -> CycleCount {
+        panic!(
+            "cpu function not implemented\nopcode 0x{:02x}\n{}",
+            opcode,
+            self.dump_registers()
+        );
+    }
+
+    fn invalid_opcode(&mut self, opcode: u8) -> CycleCount {
+        panic!("opcode 0x{:02x} is an invalid instruction", opcode);
+    }
+
+    fn nop(&mut self, _: u8) -> CycleCount {
         self.pc += 1;
         4
     }
 
-    fn not_implemented(&mut self, opcode: u8) -> CycleCount {
-        panic!("cpu function not implemented, opcode {:02x}", opcode);
+    fn jump(&mut self, _: u8) -> CycleCount {
+        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+        self.pc = target as usize;
+        16
     }
 
-    fn zip(&mut self, opcode: u8) -> CycleCount {
-        println!("zip");
+    fn xor_8bit_a_b(&mut self, _: u8) -> CycleCount {
+        self.a = self.a ^ self.b;
+        self.pc += 1;
+        4
+    }
+
+    fn xor_8bit_a_c(&mut self, _: u8) -> CycleCount {
+        self.a = self.a ^ self.c;
+        self.pc += 1;
+        4
+    }
+
+    fn xor_8bit_a_d(&mut self, _: u8) -> CycleCount {
+        self.a = self.a ^ self.d;
+        self.pc += 1;
+        4
+    }
+
+    fn xor_8bit_a_e(&mut self, _: u8) -> CycleCount {
+        self.a = self.a ^ self.e;
+        self.pc += 1;
+        4
+    }
+
+    fn xor_8bit_a_h(&mut self, _: u8) -> CycleCount {
+        self.a = self.a ^ self.h;
+        self.pc += 1;
+        4
+    }
+
+    fn xor_8bit_a_l(&mut self, _: u8) -> CycleCount {
+        self.a = self.a ^ self.l;
+        self.pc += 1;
+        4
+    }
+
+    fn xor_8bit_a_hl_indirect(&mut self, _: u8) -> CycleCount {
+        self.a = self.a ^ self.mem[self.get_hl() as usize];
+        self.pc += 1;
+        4
+    }
+
+    fn xor_8bit_a_a(&mut self, _: u8) -> CycleCount {
+        self.a = self.a ^ self.a;
         self.pc += 1;
         4
     }
