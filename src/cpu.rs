@@ -153,129 +153,6 @@ impl Cpu {
                 cycle_count_since_last_sleep = 0;
                 thread::yield_now();
             }
-
-            continue;
-
-            match opcode {
-                // load 16bit program value to register (little endian)
-                0x01 => {
-                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
-                    self.set_bc(value);
-                    self.pc += 3;
-                }
-                0x11 => {
-                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
-                    self.set_de(value);
-                    self.pc += 3;
-                }
-                0x21 => {
-                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
-                    self.set_hl(value);
-                    self.pc += 3;
-                }
-                0x31 => {
-                    let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
-                    self.sp = value as usize;
-                    self.pc += 3;
-                }
-                // 8 bit load program value to register
-                0x06 => {
-                    let value = self.mem[self.pc + 1];
-                    self.b = value;
-                    self.pc += 2;
-                }
-                0x0e => {
-                    let value = self.mem[self.pc + 1];
-                    self.c = value;
-                    self.pc += 2;
-                }
-                0x16 => {
-                    let value = self.mem[self.pc + 1];
-                    self.d = value;
-                    self.pc += 2;
-                }
-                0x1e => {
-                    let value = self.mem[self.pc + 1];
-                    self.e = value;
-                    self.pc += 2;
-                }
-                0x26 => {
-                    let value = self.mem[self.pc + 1];
-                    self.h = value;
-                    self.pc += 2;
-                }
-                0x2e => {
-                    let value = self.mem[self.pc + 1];
-                    self.l = value;
-                    self.pc += 2;
-                }
-                0x36 => {
-                    // load value to hl address
-                    let value = self.mem[self.pc + 1];
-                    let hl = self.get_hl() as usize;
-                    self.mem[hl] = value;
-                    self.pc += 2;
-                }
-                0x3e => {
-                    let value = self.mem[self.pc + 1];
-                    self.a = value;
-                    self.pc += 2;
-                }
-                // load from accumulator (indirect BC, DE, HL+, HL-)
-                // 02 12 22 32 A register stored to (BC), (DE), (HL+), or (HL-)
-                // hl+ and hl- means increment or decrement hl AFTER memory read
-                0x02 => {
-                    let address = self.get_bc() as usize;
-                    self.mem[address] = self.a;
-                    self.pc += 1;
-                }
-                0x12 => {
-                    let address = self.get_de() as usize;
-                    self.mem[address] = self.a;
-                    self.pc += 1;
-                }
-                0x22 => {
-                    let address = self.get_hl() as usize;
-                    self.set_hl(address as u16 + 1);
-                    self.mem[address] = self.a;
-                    self.pc += 1;
-                }
-                0x32 => {
-                    let address = self.get_hl() as usize;
-                    self.set_hl(address as u16 - 1);
-                    self.mem[address] = self.a;
-                    self.pc += 1;
-                }
-                //load to accumulator (indirect BC, DE, HL+, HL-)
-                // 0a 1a 2a 3a (BC), (DE), (HL+), or (HL-) stored to A register
-                0x0a => {
-                    let address = self.get_bc() as usize;
-                    self.a = self.mem[address];
-                    self.pc += 1;
-                }
-                0x1a => {
-                    let address = self.get_de() as usize;
-                    self.a = self.mem[address];
-                    self.pc += 1;
-                }
-                0x2a => {
-                    let address = self.get_hl() as usize;
-                    self.set_hl(address as u16 + 1);
-                    self.a = self.mem[address];
-                    self.pc += 1;
-                }
-                0x3a => {
-                    let address = self.get_hl() as usize;
-                    self.set_hl(address as u16 - 1);
-                    self.a = self.mem[address];
-                    self.pc += 1;
-                }
-                _ => panic!(
-                    "unhandled instruction '0x{:02x}'\n{}",
-                    self.mem[self.pc],
-                    self.dump_registers()
-                ),
-            }
         }
     }
 
@@ -446,12 +323,38 @@ PC: {:#x}",
         table[0xae] = Cpu::xor_8bit_a_hl_indirect;
         table[0xaf] = Cpu::xor_8bit_a_a;
 
+        table[0x01] = Cpu::load_16bit_bc_immediate_value;
+        table[0x11] = Cpu::load_16bit_de_immediate_value;
+        table[0x21] = Cpu::load_16bit_hl_immediate_value;
+        table[0x31] = Cpu::load_16bit_sp_immediate_value;
+
+        table[0x06] = Cpu::load_8bit_b_immediate_value;
+        table[0x0e] = Cpu::load_8bit_c_immediate_value;
+        table[0x16] = Cpu::load_8bit_d_immediate_value;
+        table[0x1e] = Cpu::load_8bit_e_immediate_value;
+        table[0x26] = Cpu::load_8bit_h_immediate_value;
+        table[0x2e] = Cpu::load_8bit_l_immediate_value;
+        table[0x36] = Cpu::load_8bit_hl_indirect_from_immediate_value;
+        table[0x3e] = Cpu::load_8bit_a_immediate_value;
+
+        table[0x02] = Cpu::load_8bit_bc_indirect_from_a;
+        table[0x12] = Cpu::load_8bit_de_indirect_from_a;
+        table[0x22] = Cpu::load_8bit_hl_inc_indirect_from_a;
+        table[0x32] = Cpu::load_8bit_hl_dec_indirect_from_a;
+
+        table[0x0a] = Cpu::load_8bit_a_from_bc_indirect;
+        table[0x1a] = Cpu::load_8bit_a_from_de_indirect;
+        table[0x2a] = Cpu::load_8bit_a_from_hl_inc_indirect;
+        table[0x3a] = Cpu::load_8bit_a_from_hl_dec_indirect;
+
         table
     }
 
     fn build_cb_bytecode_table() -> BytecodeTable {
         // initialize table with all opcodes as not_implemented
         let mut table: BytecodeTable = [Cpu::not_implemented; 255];
+
+        table[0x00] = Cpu::not_implemented;
 
         table
     }
@@ -468,62 +371,254 @@ PC: {:#x}",
         panic!("opcode 0x{:02x} is an invalid instruction", opcode);
     }
 
+    //0x00
     fn nop(&mut self, _: u8) -> CycleCount {
         self.pc += 1;
         4
     }
 
+    //0xc3
     fn jump(&mut self, _: u8) -> CycleCount {
         let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         self.pc = target as usize;
         16
     }
 
+    //0xa8
     fn xor_8bit_a_b(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.b;
         self.pc += 1;
         4
     }
 
+    //0xa9
     fn xor_8bit_a_c(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.c;
         self.pc += 1;
         4
     }
 
+    //0xaa
     fn xor_8bit_a_d(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.d;
         self.pc += 1;
         4
     }
 
+    //0xab
     fn xor_8bit_a_e(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.e;
         self.pc += 1;
         4
     }
 
+    //0xac
     fn xor_8bit_a_h(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.h;
         self.pc += 1;
         4
     }
 
+    //0xad
     fn xor_8bit_a_l(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.l;
         self.pc += 1;
         4
     }
 
+    //0xae
     fn xor_8bit_a_hl_indirect(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.mem[self.get_hl() as usize];
         self.pc += 1;
         4
     }
 
+    //0xaf
     fn xor_8bit_a_a(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.a;
         self.pc += 1;
         4
+    }
+
+    // note: this 16bit loads are little endian
+    //0x01
+    fn load_16bit_bc_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        self.set_bc(value);
+        self.pc += 3;
+        12
+    }
+
+    //0x11
+    fn load_16bit_de_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        self.set_de(value);
+        self.pc += 3;
+        12
+    }
+
+    //0x21
+    fn load_16bit_hl_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        self.set_hl(value);
+        self.pc += 3;
+        12
+    }
+
+    //0x31
+    fn load_16bit_sp_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        self.sp = value as usize;
+        self.pc += 3;
+        12
+    }
+
+    //0x06
+    fn load_8bit_b_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = self.mem[self.pc + 1];
+        self.b = value;
+        self.pc += 2;
+        8
+    }
+
+    //0x0e
+    fn load_8bit_c_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = self.mem[self.pc + 1];
+        self.c = value;
+        self.pc += 2;
+        8
+    }
+
+    // 0x16
+    fn load_8bit_d_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = self.mem[self.pc + 1];
+        self.d = value;
+        self.pc += 2;
+        8
+    }
+
+    // 0x1e
+    fn load_8bit_e_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = self.mem[self.pc + 1];
+        self.e = value;
+        self.pc += 2;
+        8
+    }
+
+    //0x26
+    fn load_8bit_h_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = self.mem[self.pc + 1];
+        self.h = value;
+        self.pc += 2;
+        8
+    }
+
+    //0x2e
+    fn load_8bit_l_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = self.mem[self.pc + 1];
+        self.l = value;
+        self.pc += 2;
+        8
+    }
+
+    //0x36
+    fn load_8bit_hl_indirect_from_immediate_value(&mut self, _: u8) -> CycleCount {
+        // load value to hl address
+        let value = self.mem[self.pc + 1];
+        let hl = self.get_hl() as usize;
+        self.mem[hl] = value;
+        self.pc += 2;
+        12
+    }
+
+    //0x3e
+    fn load_8bit_a_immediate_value(&mut self, _: u8) -> CycleCount {
+        let value = self.mem[self.pc + 1];
+        self.a = value;
+        self.pc += 2;
+        8
+    }
+
+    // load from accumulator (indirect BC, DE, HL+, HL-)
+    // 02 12 22 32 A register stored to (BC), (DE), (HL+), or (HL-)
+    // hl+ and hl- means increment or decrement hl AFTER memory read
+    //0x02
+    fn load_8bit_bc_indirect_from_a(&mut self, _: u8) -> CycleCount {
+        let address = self.get_bc() as usize;
+        self.mem[address] = self.a;
+        self.pc += 1;
+        8
+    }
+
+    //0x12
+    fn load_8bit_de_indirect_from_a(&mut self, _: u8) -> CycleCount {
+        let address = self.get_de() as usize;
+        self.mem[address] = self.a;
+        self.pc += 1;
+        8
+    }
+
+    //0x22
+    fn load_8bit_hl_inc_indirect_from_a(&mut self, _: u8) -> CycleCount {
+        //Load to the absolute address specified by the 16-bit register HL,
+        //data from the 8-bit A register. The value of HL is incremented
+        //after the memory write.
+        let address = self.get_hl() as usize;
+        self.mem[address] = self.a;
+        self.set_hl(address as u16 + 1);
+        self.pc += 1;
+        8
+    }
+
+    //0x32
+    fn load_8bit_hl_dec_indirect_from_a(&mut self, _: u8) -> CycleCount {
+        //Load to the absolute address specified by the 16-bit register HL,
+        //data from the 8-bit A register. The value of HL is decremented
+        //after the memory write.
+        let address = self.get_hl() as usize;
+        self.mem[address] = self.a;
+        self.set_hl(address as u16 - 1);
+        self.pc += 1;
+        8
+    }
+
+    //load to accumulator (indirect BC, DE, HL+, HL-)
+    // 0a 1a 2a 3a (BC), (DE), (HL+), or (HL-) stored to A register
+    //0x0a
+    fn load_8bit_a_from_bc_indirect(&mut self, _: u8) -> CycleCount {
+        let address = self.get_bc() as usize;
+        self.a = self.mem[address];
+        self.pc += 1;
+        8
+    }
+
+    //0x1a
+    fn load_8bit_a_from_de_indirect(&mut self, _: u8) -> CycleCount {
+        let address = self.get_de() as usize;
+        self.a = self.mem[address];
+        self.pc += 1;
+        8
+    }
+
+    //0x2a
+    fn load_8bit_a_from_hl_inc_indirect(&mut self, _: u8) -> CycleCount {
+        //Load to the 8-bit A register, data from the absolute address
+        //specified by the 16-bit register HL. The value of HL is
+        //incremented after the memory read.
+
+        let address = self.get_hl() as usize;
+        self.a = self.mem[address];
+        self.set_hl(address as u16 + 1);
+        self.pc += 1;
+        8
+    }
+
+    //0x3a
+    fn load_8bit_a_from_hl_dec_indirect(&mut self, _: u8) -> CycleCount {
+        let address = self.get_hl() as usize;
+        self.a = self.mem[address];
+        self.set_hl(address as u16 - 1);
+        self.pc += 1;
+        8
     }
 }
