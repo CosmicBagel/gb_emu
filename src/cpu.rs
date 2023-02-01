@@ -194,12 +194,12 @@ impl Cpu {
 
     fn dump_registers(&self) -> String {
         format!(
-            "A: {:#02x}\tF: {:#02x}
-B: {:#02x}\tC: {:#02x}
-D: {:#02x}\tE: {:#02x}
-H: {:#02x}\tL: {:#02x}
-SP: {:#x}
-PC: {:#x}",
+            "A: 0x{:02x}\tF: 0x{:02x}
+B: 0x{:02x}\tC: 0x{:02x}
+D: 0x{:02x}\tE: 0x{:02x}
+H: 0x{:02x}\tL: 0x{:02x}
+SP: 0x{:04x}
+PC: 0x{:04x}",
             self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc
         )
     }
