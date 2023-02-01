@@ -136,6 +136,7 @@ impl Cpu {
 
             let opcode = self.mem[self.pc];
             println!("{:#02x}: {:02x}", self.pc, opcode);
+
             //execute instruction
             let cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
 
@@ -153,6 +154,48 @@ impl Cpu {
                 cycle_count_since_last_sleep = 0;
                 thread::yield_now();
             }
+
+            // check for interrupts and adjust PC accordingly
+            // EI (0xfb) is delayed by one instruction (calling DI right after
+            // EI would mean no interrupts can trigger)
+
+            //IME, IE, IF
+            // IME = master interrupt enable flag (write only), can only be modified by
+            //      EI instruction (enable interrupts), DI instruction (disable interrupts),
+            //      RETI instruction (return and enable interrupts),
+            //      ISR (not an instruction, the interrupt service routine, disables interrupts and
+            //          calls the interrupt handler)
+            //      IME is write only, meaning it is not a part of the addressable memory space
+            //      it is a flag somewhere in the cpu's silicon.
+            // ISR interrupt service handler: magic code on the cpu that runs before any
+            //      interrupt handler is called (does it effect the call stack?)
+            //          1. the IF bit corresponding to the handler is reset (to 0)
+            //          2. disables interrupt handling (IME)
+            //          3. corresponding handler address is called (eg $40), a regular call,
+            //              just like the `call $40` so current PC is pushed onto the stack
+            //          Note: this routine should last 20 cycles (or 5 `nop`s)
+            // IE, located at $ffff, first 5 bits (0-4) correspond to an interrupt
+            //      handler to be enabled or disabled (1/0)
+            // IF, located at $ff0f, first 5 bits (0-4) are flags for each handler, when a bit
+            //      is flipped to 1, the corresponding interrupt has been requested. Usually not
+            //      necessary to write to this, unless the user wants to manually request
+            //      an interrupt, or discard interrupts
+            //
+            //
+            //interrupts (in same bit order as for IE & IF)
+            // VBlank (bit 0)   - $40 -> handles
+            // LCD STAT (bit 1) - $48
+            // Timer (bit 2)    - $50
+            // Serial (bit 3)   - $58
+            // Joypad (bit 4)   - $60
+            // Bit 0 (VBlank) has the highest priority,
+            // and Bit 4 (Joypad) has the lowest priority
+            // If multiple bits are 1 in the IF, then we call the interrupts in this order
+            //
+            // *Interrupts are always disabled when calling an interrupt, so by
+            // default interrupts do not "nest". However user can call IE which will
+            // enabled interrupts while the handler is running, allowing for a nested
+            // interrupt to occur
         }
     }
 
