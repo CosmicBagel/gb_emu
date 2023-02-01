@@ -42,6 +42,15 @@ pub struct Cpu {
     //opcode tables
     primary_bytecode_table: BytecodeTable,
     cb_bytecode_table: BytecodeTable,
+
+    //IME
+    interrupt_master_enable: bool,
+
+    // quirk emulation
+    //ei_delay is to emulate the delay of enabling interrupts (it happens one instruction late)
+    //so if I call ei, then increment A, interrupt won't be enabled till after the increment
+    //this can effect the HALT bug
+    ei_delay: u8,
 }
 
 impl Cpu {
@@ -61,6 +70,10 @@ impl Cpu {
             mem: vec![0; 0x10000], //65535 valid memory bytes the full virtual space of 0xffff
             primary_bytecode_table: Cpu::build_bytecode_table(),
             cb_bytecode_table: Cpu::build_cb_bytecode_table(),
+
+            ei_delay: 0,
+
+            interrupt_master_enable: true,
         }
     }
 
