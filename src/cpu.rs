@@ -677,4 +677,44 @@ PC: 0x{:04x}",
         self.pc += 1;
         8
     }
+
+    //call and returns
+    // note: stack starts at 0xfffe, (and goes down in addresses)
+    // our SP is set to this address by default
+    // each stack entry is a 16 byte memory address
+    // 127 bytes of available memory for stack (max call stack of 7)
+    //      why its not an even 128, I have no idea
+    // if we try to push to the stack more than available, do a panic I guess
+    //      def don't let it overwrite the i/o registers lol
+
+    // 0xcd
+    fn call(&mut self, _: u8) -> CycleCount {
+        24
+    }
+
+    fn call_conditional(&mut self, _: u8) -> CycleCount {
+        //24 cycles if condition true, 12 if not
+        24
+    }
+
+    // 0xc9
+    fn ret(&mut self, _: u8) -> CycleCount {
+        16
+    }
+
+    // 0xc0, 0xd0, 0xc8, 0xd8
+    // 0xc0 NZ flags (subtract & zero)
+    // 0xc8 Z flag (zero)
+    // 0xd0 NC flags (subtract & carry)
+    // 0xd8 C flag  (carry)
+    fn ret_conditional(&mut self, _: u8) -> CycleCount {
+        // 20 cycles if condition true, 8 if not
+        20
+    }
+
+    //return and enable interrupts (IME = 1)
+    //0xd9
+    fn reti(&mut self, _: u8) -> CycleCount {
+        16
+    }
 }
