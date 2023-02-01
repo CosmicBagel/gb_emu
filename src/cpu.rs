@@ -55,7 +55,7 @@ impl Cpu {
             e: 0x00,
             h: 0x00,
             l: 0x00,
-            sp: 0x0000,
+            sp: 0xfffe, //the starting point for stack ram (0xff80 to 0xfffe; 127 bytes)
             pc: 0x0000,
 
             mem: vec![0; 0x10000], //65535 valid memory bytes the full virtual space of 0xffff
