@@ -1,0 +1,9 @@
+{
+    "recommendations": [
+        "streetsidesoftware.code-spell-checker",
+        "vadimcn.vscode-lldb",
+        "serayuzgur.crates",
+        "bungcip.better-toml",
+        "rust-lang.rust-analyzer"
+    ]
+}
