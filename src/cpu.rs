@@ -681,8 +681,8 @@ PC: 0x{:04x}",
     //call and returns
     // note: stack starts at 0xfffe, (and goes down in addresses)
     // our SP is set to this address by default
-    // each stack entry is a 16 byte memory address
-    // 127 bytes of available memory for stack (max call stack of 7)
+    // each stack entry is a 16 bit (2 byte) memory address
+    // 127 bytes of available memory for stack (max call stack of 63)
     //      why its not an even 128, I have no idea
     // if we try to push to the stack more than available, do a panic I guess
     //      def don't let it overwrite the i/o registers lol
