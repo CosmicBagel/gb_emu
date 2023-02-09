@@ -4,6 +4,10 @@ use std::{fs::read, process::exit, thread, time};
 pub type CycleCount = u32;
 type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 255];
 
+const Z_FLAG_MASK: u8 = 0b1000_0000;
+const N_FLAG_MASK: u8 = 0b0100_0000;
+const H_FLAG_MASK: u8 = 0b0010_0000;
+const C_FLAG_MASK: u8 = 0b0001_0000;
 pub struct Cpu {
     //registers
     // 16-bit	Hi	Lo	Name/Function
@@ -403,6 +407,21 @@ PC: 0x{:04x}",
         table[0x2a] = Cpu::load_8bit_a_from_hl_inc_indirect;
         table[0x3a] = Cpu::load_8bit_a_from_hl_dec_indirect;
 
+        table[0xcd] = Cpu::call;
+        table[0xc4] = Cpu::call_conditional_nz;
+        table[0xcc] = Cpu::call_conditional_z;
+        table[0xd4] = Cpu::call_conditional_nc;
+        table[0xdc] = Cpu::call_conditional_c;
+        table[0xc9] = Cpu::ret;
+        table[0xc0] = Cpu::ret_conditional_nz;
+        table[0xc8] = Cpu::ret_conditional_z;
+        table[0xd0] = Cpu::ret_conditional_nc;
+        table[0xd8] = Cpu::ret_conditional_c;
+        table[0xd9] = Cpu::reti;
+
+        table[0xf3] = Cpu::disable_interrupt;
+        table[0xfb] = Cpu::enable_interrupt;
+
         table
     }
 
@@ -689,32 +708,135 @@ PC: 0x{:04x}",
 
     // 0xcd
     fn call(&mut self, _: u8) -> CycleCount {
+        self.helper_call();
         24
     }
 
-    fn call_conditional(&mut self, _: u8) -> CycleCount {
+    // 0xc4 0xcc 0xd4 0xdc
+    // 0b110cc100
+    // 0xc4 nz cc = 00
+    fn call_conditional_nz(&mut self, _: u8) -> CycleCount {
         //24 cycles if condition true, 12 if not
+        if self.f & (Z_FLAG_MASK | N_FLAG_MASK) == 0 {
+            return 12;
+        }
+        self.helper_call();
         24
+    }
+    // 0xcc z  cc = 01
+    fn call_conditional_z(&mut self, _: u8) -> CycleCount {
+        //24 cycles if condition true, 12 if not
+        if self.f & Z_FLAG_MASK == 0 {
+            return 12;
+        }
+        self.helper_call();
+        24
+    }
+    // 0xd4 nc cc = 10
+    fn call_conditional_nc(&mut self, _: u8) -> CycleCount {
+        //24 cycles if condition true, 12 if not
+        if self.f & (N_FLAG_MASK | C_FLAG_MASK) == 0 {
+            return 12;
+        }
+        self.helper_call();
+        24
+    }
+    // 0xdc c  cc = 11
+    fn call_conditional_c(&mut self, _: u8) -> CycleCount {
+        //24 cycles if condition true, 12 if not
+        if self.f & C_FLAG_MASK == 0 {
+            return 12;
+        }
+        self.helper_call();
+        24
+    }
+
+    // handles common call functionality
+    fn helper_call(&mut self) {
+        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+
+        let lesser_pc = self.pc as u8;
+        let major_pc = (self.pc >> 8) as u8;
+
+        self.mem[self.sp - 1] = major_pc;
+        self.mem[self.sp - 2] = lesser_pc;
+        self.sp -= 2;
+
+        self.pc = target as usize;
     }
 
     // 0xc9
     fn ret(&mut self, _: u8) -> CycleCount {
+        self.helper_return();
         16
     }
 
     // 0xc0, 0xd0, 0xc8, 0xd8
-    // 0xc0 NZ flags (subtract & zero)
-    // 0xc8 Z flag (zero)
-    // 0xd0 NC flags (subtract & carry)
-    // 0xd8 C flag  (carry)
-    fn ret_conditional(&mut self, _: u8) -> CycleCount {
+    // 0b110cc000
+    // 0xc0 NZ flags (subtract & zero)  cc = 00
+    fn ret_conditional_nz(&mut self, _: u8) -> CycleCount {
         // 20 cycles if condition true, 8 if not
+        if self.f & (Z_FLAG_MASK | N_FLAG_MASK) == 0 {
+            return 8;
+        }
+        self.helper_return();
+        20
+    }
+    // 0xc8 Z flag (zero)               cc = 01
+    fn ret_conditional_z(&mut self, _: u8) -> CycleCount {
+        // 20 cycles if condition true, 8 if not
+        if self.f & Z_FLAG_MASK == 0 {
+            return 8;
+        }
+        self.helper_return();
+        20
+    }
+    // 0xd0 NC flags (subtract & carry) cc = 10
+    fn ret_conditional_nc(&mut self, _: u8) -> CycleCount {
+        // 20 cycles if condition true, 8 if not
+        if self.f & (N_FLAG_MASK | C_FLAG_MASK) == 0 {
+            return 8;
+        }
+        self.helper_return();
+        20
+    }
+    // 0xd8 C flag  (carry)             cc = 11
+    fn ret_conditional_c(&mut self, _: u8) -> CycleCount {
+        // 20 cycles if condition true, 8 if not
+        if self.f & C_FLAG_MASK == 0 {
+            return 8;
+        }
+        self.helper_return();
         20
     }
 
     //return and enable interrupts (IME = 1)
     //0xd9
     fn reti(&mut self, _: u8) -> CycleCount {
+        self.helper_return();
+        self.interrupt_master_enable = true;
         16
+    }
+
+    // handles common return functionality
+    fn helper_return(&mut self) {
+        self.pc = ((self.mem[self.sp + 1] as usize) << 8) | self.mem[self.sp] as usize;
+        self.sp += 2;
+    }
+
+    // interrupt enable / disable
+
+    //0xf3
+    fn disable_interrupt(&mut self, _: u8) -> CycleCount {
+        self.interrupt_master_enable = false;
+        self.pc += 1;
+        4
+    }
+
+    //0xfb
+    fn enable_interrupt(&mut self, _: u8) -> CycleCount {
+        self.interrupt_master_enable = true;
+        self.pc += 1;
+        4
     }
 }
