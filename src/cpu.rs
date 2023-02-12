@@ -8,6 +8,26 @@ const Z_FLAG_MASK: u8 = 0b1000_0000;
 const N_FLAG_MASK: u8 = 0b0100_0000;
 const H_FLAG_MASK: u8 = 0b0010_0000;
 const C_FLAG_MASK: u8 = 0b0001_0000;
+
+const INTERRUPT_ENABLE_ADDRESS: usize = 0xffff;
+const INTERRUPT_FLAG_ADDRESS: usize = 0xff0f;
+
+enum InterruptFlags {
+    VBlank = 0b0000_0001,
+    LcdStat = 0b0000_0010,
+    Timer = 0b0000_0100,
+    Serial = 0b0000_1000,
+    Joypad = 0b0001_0000,
+}
+
+enum InterruptAddresses {
+    VBlank = 0x0040,
+    LcdStat = 0x0048,
+    Timer = 0x0050,
+    Serial = 0x0058,
+    Joypad = 0x0060,
+}
+
 pub struct Cpu {
     //registers
     // 16-bit	Hi	Lo	Name/Function
@@ -54,7 +74,13 @@ pub struct Cpu {
     //ei_delay is to emulate the delay of enabling interrupts (it happens one instruction late)
     //so if I call ei, then increment A, interrupt won't be enabled till after the increment
     //this can effect the HALT bug
+    // ei_delay is decremented when its greater than zero
+    // if zero after decrement, set ime true
+    // ignored if it is currently zero
+    // enable_interrupt will set this to 2, (enabling ime is checked after each instruction)
+    // disable_interrupt will set this to 0, to stop ime from being enabled
     ei_delay: u8,
+
 }
 
 impl Cpu {
@@ -155,7 +181,12 @@ impl Cpu {
             println!("{:#02x}: {:02x}", self.pc, opcode);
 
             //execute instruction
-            let cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
+            let mut cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
+
+            if self.check_interrupts() {
+                // when true, the ISR (interrupt service handler) consumes 20 cycles
+                cycle_cost += 20;
+            }
 
             //todo:
             // should be using a timer, subtracting time used to actually process instruction
@@ -170,6 +201,13 @@ impl Cpu {
             if cycle_count_since_last_sleep >= cycles_per_sleep {
                 cycle_count_since_last_sleep = 0;
                 thread::yield_now();
+            }
+
+            if self.ei_delay > 0 {
+                self.ei_delay -= 1;
+                if self.ei_delay == 0 {
+                    self.interrupt_master_enable = true;
+                }
             }
 
             // check for interrupts and adjust PC accordingly
@@ -214,6 +252,69 @@ impl Cpu {
             // enabled interrupts while the handler is running, allowing for a nested
             // interrupt to occur
         }
+    }
+
+    fn check_interrupts(&mut self) -> bool {
+        if self.interrupt_master_enable {
+            println!("checking interrupts");
+
+            let interrupt_enable = self.mem[INTERRUPT_ENABLE_ADDRESS];
+            let interrupt_flag = self.mem[INTERRUPT_FLAG_ADDRESS];
+
+            let interrupt_pending = interrupt_enable & interrupt_flag;
+
+            // early return after each interrupt, can only run one interrupt at
+            // at time
+            // this enforces a priority order as well
+            if InterruptFlags::VBlank as u8 & interrupt_pending != 0 {
+                self.interrupt_service_handler(
+                    InterruptAddresses::VBlank as u16,
+                    InterruptFlags::VBlank as u8,
+                );
+                return true;
+            }
+
+            if InterruptFlags::LcdStat as u8 & interrupt_pending != 0 {
+                self.interrupt_service_handler(
+                    InterruptAddresses::LcdStat as u16,
+                    InterruptFlags::LcdStat as u8,
+                );
+                return true;
+            }
+
+            if InterruptFlags::Timer as u8 & interrupt_pending != 0 {
+                self.interrupt_service_handler(
+                    InterruptAddresses::Timer as u16,
+                    InterruptFlags::Timer as u8,
+                );
+                return true;
+            }
+
+            if InterruptFlags::Serial as u8 & interrupt_pending != 0 {
+                self.interrupt_service_handler(
+                    InterruptAddresses::Serial as u16,
+                    InterruptFlags::Serial as u8,
+                );
+                return true;
+            }
+
+            if InterruptFlags::Joypad as u8 & interrupt_pending != 0 {
+                self.interrupt_service_handler(
+                    InterruptAddresses::Joypad as u16,
+                    InterruptFlags::Joypad as u8,
+                );
+                return true;
+            }
+        }
+        false
+    }
+
+    fn interrupt_service_handler(&mut self, address: u16, flag_mask: u8) {
+        //0 out the interrupt flag bit
+        self.mem[INTERRUPT_FLAG_ADDRESS] ^= flag_mask;
+        self.interrupt_master_enable = false;
+        self.helper_call(address);
+        //needs to wait 20 cycles
     }
 
     fn get_af(&self) -> u16 {
@@ -708,7 +809,8 @@ PC: 0x{:04x}",
 
     // 0xcd
     fn call(&mut self, _: u8) -> CycleCount {
-        self.helper_call();
+        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+        self.helper_call(target);
         24
     }
 
@@ -716,45 +818,47 @@ PC: 0x{:04x}",
     // 0b110cc100
     // 0xc4 nz cc = 00
     fn call_conditional_nz(&mut self, _: u8) -> CycleCount {
+        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         //24 cycles if condition true, 12 if not
         if self.f & (Z_FLAG_MASK | N_FLAG_MASK) == 0 {
             return 12;
         }
-        self.helper_call();
+        self.helper_call(target);
         24
     }
     // 0xcc z  cc = 01
     fn call_conditional_z(&mut self, _: u8) -> CycleCount {
+        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         //24 cycles if condition true, 12 if not
         if self.f & Z_FLAG_MASK == 0 {
             return 12;
         }
-        self.helper_call();
+        self.helper_call(target);
         24
     }
     // 0xd4 nc cc = 10
     fn call_conditional_nc(&mut self, _: u8) -> CycleCount {
+        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         //24 cycles if condition true, 12 if not
         if self.f & (N_FLAG_MASK | C_FLAG_MASK) == 0 {
             return 12;
         }
-        self.helper_call();
+        self.helper_call(target);
         24
     }
     // 0xdc c  cc = 11
     fn call_conditional_c(&mut self, _: u8) -> CycleCount {
+        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         //24 cycles if condition true, 12 if not
         if self.f & C_FLAG_MASK == 0 {
             return 12;
         }
-        self.helper_call();
+        self.helper_call(target);
         24
     }
 
     // handles common call functionality
-    fn helper_call(&mut self) {
-        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
-
+    fn helper_call(&mut self, target: u16) {
         let lesser_pc = self.pc as u8;
         let major_pc = (self.pc >> 8) as u8;
 
@@ -829,13 +933,14 @@ PC: 0x{:04x}",
     //0xf3
     fn disable_interrupt(&mut self, _: u8) -> CycleCount {
         self.interrupt_master_enable = false;
+        self.ei_delay = 0;
         self.pc += 1;
         4
     }
 
     //0xfb
     fn enable_interrupt(&mut self, _: u8) -> CycleCount {
-        self.interrupt_master_enable = true;
+        self.ei_delay = 2;
         self.pc += 1;
         4
     }
