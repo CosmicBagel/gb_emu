@@ -1,5 +1,5 @@
 use spin_sleep;
-use std::{fs::read, process::exit, thread, time};
+use std::{fs::read, iter::Cycle, process::exit, thread, time};
 
 pub type CycleCount = u32;
 type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 255];
@@ -80,7 +80,6 @@ pub struct Cpu {
     // enable_interrupt will set this to 2, (enabling ime is checked after each instruction)
     // disable_interrupt will set this to 0, to stop ime from being enabled
     ei_delay: u8,
-
 }
 
 impl Cpu {
@@ -508,6 +507,11 @@ PC: 0x{:04x}",
         table[0x2a] = Cpu::load_8bit_a_from_hl_inc_indirect;
         table[0x3a] = Cpu::load_8bit_a_from_hl_dec_indirect;
 
+        for i in 0..64usize {
+            if 0x40 + i == 0x76 { continue; } // this is the halt op
+            table[0x40 + i] = Cpu::load_8bit_reg_to_reg;
+        }
+
         table[0xcd] = Cpu::call;
         table[0xc4] = Cpu::call_conditional_nz;
         table[0xcc] = Cpu::call_conditional_z;
@@ -796,6 +800,45 @@ PC: 0x{:04x}",
         self.set_hl(address as u16 - 1);
         self.pc += 1;
         8
+    }
+
+    //0x40 through 0x7f, but NOT 0x76 that's HALT
+    fn load_8bit_reg_to_reg(&mut self, opcode: u8) -> CycleCount {
+        //opcode 0b01_xxx_yyy
+        let to_reg = opcode & 0b00_111_000 >> 3;
+        let from_reg = opcode & 0b00_000_111;
+
+        let hl = self.get_hl() as usize;
+        // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => (HL), 7 => A
+        let read_val = match from_reg {
+            0 => self.b,
+            1 => self.c,
+            2 => self.d,
+            3 => self.e,
+            4 => self.h,
+            5 => self.l,
+            6 => self.mem[hl],
+            7 => self.a,
+            _ => panic!("invalid from_reg value in load operation"),
+        };
+
+        match to_reg {
+            0 => self.b = read_val,
+            1 => self.c = read_val,
+            2 => self.d = read_val,
+            3 => self.e = read_val,
+            4 => self.h = read_val,
+            5 => self.l = read_val,
+            6 => self.mem[hl] = read_val,
+            7 => self.a = read_val,
+            _ => panic!("invalid to_reg value in load operation"),
+        }
+
+        if from_reg == 6 || to_reg == 6 {
+            8 // indirect mem access using hl takes 8 cycles
+        } else {
+            4 // all other loads are 4 cycles
+        }
     }
 
     //call and returns
