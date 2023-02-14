@@ -1,5 +1,5 @@
 use spin_sleep;
-use std::{fs::read, iter::Cycle, process::exit, thread, time};
+use std::{fs::read, process::exit, thread, time};
 
 pub type CycleCount = u32;
 type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 255];
@@ -314,15 +314,6 @@ impl Cpu {
         self.interrupt_master_enable = false;
         self.helper_call(address);
         //needs to wait 20 cycles
-    }
-
-    fn get_af(&self) -> u16 {
-        (self.a as u16) << 8 | self.f as u16
-    }
-
-    fn set_af(&mut self, value: u16) {
-        self.a = (value >> 8) as u8;
-        self.f = value as u8;
     }
 
     fn get_bc(&self) -> u16 {
