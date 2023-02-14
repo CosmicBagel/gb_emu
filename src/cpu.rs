@@ -166,7 +166,7 @@ impl Cpu {
         let mut cycle_count_since_last_sleep = 0u32;
 
         // there are about 245 unique opcodes
-        // 30 implemented so far
+        // 112 implemented so far
         // 0 have tests
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
