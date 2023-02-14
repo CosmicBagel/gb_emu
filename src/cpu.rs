@@ -507,6 +507,13 @@ PC: 0x{:04x}",
         table[0x2a] = Cpu::load_8bit_a_from_hl_inc_indirect;
         table[0x3a] = Cpu::load_8bit_a_from_hl_dec_indirect;
 
+        table[0xe0] = Cpu::load_8bit_a_from_io_immediate_offset;
+        table[0xf0] = Cpu::load_8bit_io_from_a_immediate_offset;
+        table[0xe2] = Cpu::load_8bit_a_from_io_c_offset;
+        table[0xf2] = Cpu::load_8bit_io_from_a_c_offset;
+        table[0xea] = Cpu::load_8bit_memory_from_a;
+        table[0xfa] = Cpu::load_8bit_a_from_memory;
+
         for i in 0..64usize {
             if 0x40 + i == 0x76 { continue; } // this is the halt op
             table[0x40 + i] = Cpu::load_8bit_reg_to_reg;
@@ -840,6 +847,56 @@ PC: 0x{:04x}",
             4 // all other loads are 4 cycles
         }
     }
+
+    //0xe0
+    fn load_8bit_io_from_a_immediate_offset(&mut self, _: u8) -> CycleCount 
+    {
+        let offset = self.mem[self.pc + 1] as usize;
+        self.mem[0xff00 + offset] = self.a;
+        self.pc += 2;
+        12
+    }
+
+    //0xf0
+    fn load_8bit_a_from_io_immediate_offset(&mut self, _: u8) -> CycleCount
+    {
+        let offset = self.mem[self.pc + 1] as usize;
+        self.a = self.mem[0xff00 + offset];
+        self.pc += 2;
+        12
+    }
+
+    //0xf2
+    fn load_8bit_io_from_a_c_offset(&mut self, _: u8) -> CycleCount {
+        self.mem[0xff00 + self.c as usize] = self.a;
+        self.pc += 1;
+        8
+    }
+
+    //0xe2
+    fn load_8bit_a_from_io_c_offset(&mut self, _: u8) -> CycleCount {
+        self.a = self.mem[0xff00 + self.c as usize];
+        self.pc += 1;
+        8
+    }
+
+    //0xea
+    fn load_8bit_memory_from_a(&mut self, _: u8) -> CycleCount {
+        let address = ((self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16) as usize;
+        self.mem[address] = self.a;
+        self.pc  += 3;
+        16
+    }
+
+    //0xfa
+    fn load_8bit_a_from_memory(&mut self, _: u8) -> CycleCount {
+        let address = ((self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16) as usize;
+        self.a = self.mem[address];
+        self.pc  += 3;
+        16
+    }
+
+
 
     //call and returns
     // note: stack starts at 0xfffe, (and goes down in addresses)
