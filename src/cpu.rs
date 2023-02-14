@@ -832,6 +832,8 @@ PC: 0x{:04x}",
             _ => panic!("invalid to_reg value in load operation"),
         }
 
+        self.pc += 1;
+
         if from_reg == 6 || to_reg == 6 {
             8 // indirect mem access using hl takes 8 cycles
         } else {
