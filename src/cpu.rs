@@ -550,9 +550,9 @@ PC: 0x{:04x}",
             table[0x90 + i] = Cpu::sub_8bit_a_reg;
             table[0xa0 + i] = Cpu::and_8bit_a_reg;
             table[0xb0 + i] = Cpu::or_8bit_a_reg;
-            table[0xb8 + i] = Cpu::cp_8bit_a_reg;
             table[0x88 + i] = Cpu::adc_8bit_a_reg;
             table[0x98 + i] = Cpu::sbc_8bit_a_reg;
+            table[0xb8 + i] = Cpu::cp_8bit_a_reg;
         }
 
         table[0xc6] = Cpu::add_8bit_a_immediate;
