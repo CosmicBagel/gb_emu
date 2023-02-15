@@ -495,6 +495,7 @@ PC: 0x{:04x}",
         // actual opcodes
         table[0x00] = Cpu::nop;
         table[0xc3] = Cpu::jump;
+        table[0xcb] = Cpu::prefix;
 
         table[0xa8] = Cpu::xor_8bit_a_b;
         table[0xa9] = Cpu::xor_8bit_a_c;
@@ -599,6 +600,12 @@ PC: 0x{:04x}",
     fn nop(&mut self, _: u8) -> CycleCount {
         self.pc += 1;
         4
+    }
+
+    //0xcb
+    fn prefix(&mut self, opcode: u8) -> CycleCount{
+        let inner_cycle_count = self.cb_bytecode_table[opcode as usize](self, opcode);
+        4 + inner_cycle_count
     }
 
     //0xc3
