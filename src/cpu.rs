@@ -700,6 +700,7 @@ PC: 0x{:04x}",
 
         //store result
         self.a = result;
+        self.pc += 1;
 
         if from_reg == 6 {
             8
@@ -784,6 +785,8 @@ PC: 0x{:04x}",
         //store result
         self.a = result;
 
+        self.pc += 1;
+
         if from_reg == 6 {
             8
         } else {
@@ -812,6 +815,7 @@ PC: 0x{:04x}",
 
         //store result
         self.a = result;
+        self.pc += 1;
 
         if from_reg == 6 {
             8
@@ -841,6 +845,7 @@ PC: 0x{:04x}",
 
         //store result
         self.a = result;
+        self.pc += 1;
 
         if from_reg == 6 {
             8
@@ -885,6 +890,7 @@ PC: 0x{:04x}",
         }
 
         //do NOT store the result (this is compare)
+        self.pc += 1;
 
         if from_reg == 6 {
             8
@@ -931,6 +937,7 @@ PC: 0x{:04x}",
 
         // store result into a reg
         self.a = result_b;
+        self.pc += 1;
 
         if from_reg == 6 {
             8
@@ -978,6 +985,7 @@ PC: 0x{:04x}",
 
         //store result
         self.a = result_b;
+        self.pc += 1;
 
         if from_reg == 6 {
             8
