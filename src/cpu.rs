@@ -556,7 +556,7 @@ PC: 0x{:04x}",
         }
 
         table[0xc6] = Cpu::add_8bit_a_immediate;
-        table[0xc6] = Cpu::sub_8bit_a_immediate;
+        table[0xd6] = Cpu::sub_8bit_a_immediate;
 
         table[0xcd] = Cpu::call;
         table[0xc4] = Cpu::call_conditional_nz;
@@ -802,6 +802,7 @@ PC: 0x{:04x}",
         }
     }
 
+    //0xd6
     fn sub_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
         let val = self.mem[self.pc + 1];
         let (result, overflow_occurred) = self.a.overflowing_sub(val);
