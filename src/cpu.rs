@@ -669,7 +669,7 @@ PC: 0x{:04x}",
         self.f &= !N_FLAG_MASK; // always flip N flag off (not subtraction)
 
         //is result zero flag
-        if self.a == 0 {
+        if result == 0 {
             self.f |= Z_FLAG_MASK; // flip on
         } else {
             self.f &= !Z_FLAG_MASK; // flip off
@@ -712,7 +712,7 @@ PC: 0x{:04x}",
         self.f |= N_FLAG_MASK; // always flip N flag on 
 
         //is result zero flag
-        if self.a == 0 {
+        if result == 0 {
             self.f |= Z_FLAG_MASK; // flip on
         } else {
             self.f &= !Z_FLAG_MASK; // flip off
