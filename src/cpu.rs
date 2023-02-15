@@ -547,6 +547,7 @@ PC: 0x{:04x}",
         for i in 0..8usize {
             table[0x80 + i] = Cpu::add_8bit_a_reg;
             table[0x90 + i] = Cpu::sub_8bit_a_reg;
+            table[0xa0 + i] = Cpu::and_8bit_a_reg;
         }
 
         table[0xcd] = Cpu::call;
@@ -732,6 +733,34 @@ PC: 0x{:04x}",
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
+        }
+
+        //store result
+        self.a = result;
+
+        if from_reg == 6 {
+            8
+        } else {
+            4
+        }
+    }
+
+    fn and_8bit_a_reg(&mut self, opcode: u8) -> CycleCount {
+        //0b10100xxx
+        let from_reg = opcode & 0b00_000_111;
+
+        let val = self.read_reg(from_reg);
+        let result = self.a & val;
+
+        self.f &= !N_FLAG_MASK;
+        self.f |= H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
+        //is result zero flag
+        if result == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
         }
 
         //store result
