@@ -550,6 +550,7 @@ PC: 0x{:04x}",
             table[0xa0 + i] = Cpu::and_8bit_a_reg;
             table[0xb0 + i] = Cpu::or_8bit_a_reg;
             table[0xb8 + i] = Cpu::cp_8bit_a_reg;
+            table[0x88 + i] = Cpu::adc_8bit_a_reg;
         }
 
         table[0xcd] = Cpu::call;
@@ -842,6 +843,52 @@ PC: 0x{:04x}",
         }
 
         //do NOT store the result (this is compare)
+
+        if from_reg == 6 {
+            8
+        } else {
+            4
+        }
+    }
+
+    //0x88 - 0x8f
+    fn adc_8bit_a_reg(&mut self, opcode: u8) -> CycleCount {
+        //0b10001_xxx
+        let from_reg = opcode & 0b00_000_111;
+        let val = self.read_reg(from_reg);
+        let last_carry_bit = self.f & C_FLAG_MASK >> 4;
+
+        let (result_a, overflow_a) = self.a.overflowing_add(val);
+        let (result_b, overflow_b) = result_a.overflowing_add(last_carry_bit);
+
+        //update flags
+        self.f &= !N_FLAG_MASK; // always flip N flag off (not subtraction)
+
+        //is result zero flag
+        if result_b == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        //carry flag
+        if overflow_a || overflow_b {
+            self.f |= C_FLAG_MASK; // flip on
+        } else {
+            self.f &= !C_FLAG_MASK; // flip off
+        }
+
+        //half carry flag
+        //mask out upper nibble and see if result flips 0x10 bit (meaning
+        //there was a half carry as result was greater than 0x0f)
+        if ((self.a & 0x0f) + (val & 0x0f) + last_carry_bit) & 0x10 == 0 {
+            self.f |= H_FLAG_MASK; // flip on
+        } else {
+            self.f &= !H_FLAG_MASK; // flip off
+        }
+
+        // store result into a reg
+        self.a = result_b;
 
         if from_reg == 6 {
             8
