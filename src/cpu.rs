@@ -548,7 +548,7 @@ PC: 0x{:04x}",
             table[0x80 + i] = Cpu::add_8bit_a_reg;
             table[0x90 + i] = Cpu::sub_8bit_a_reg;
             table[0xa0 + i] = Cpu::and_8bit_a_reg;
-            table[0xa0 + i] = Cpu::or_8bit_a_reg;
+            table[0xb0 + i] = Cpu::or_8bit_a_reg;
         }
 
         table[0xcd] = Cpu::call;
