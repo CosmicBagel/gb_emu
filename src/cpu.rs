@@ -704,6 +704,7 @@ PC: 0x{:04x}",
         }
     }
 
+    // 0x90 - 0x97
     fn sub_8bit_a_reg(&mut self, opcode: u8) -> CycleCount {
         //0b10010_xxx
         let from_reg = opcode & 0b00_000_111;
@@ -747,6 +748,7 @@ PC: 0x{:04x}",
         }
     }
 
+    // 0xa0 - 0xa7
     fn and_8bit_a_reg(&mut self, opcode: u8) -> CycleCount {
         //0b10100xxx
         let from_reg = opcode & 0b00_000_111;
@@ -775,6 +777,7 @@ PC: 0x{:04x}",
         }
     }
 
+    //0xb0 - 0xb7
     fn or_8bit_a_reg(&mut self, opcode: u8) -> CycleCount {
         //0b10100xxx
         let from_reg = opcode & 0b00_000_111;
@@ -803,8 +806,10 @@ PC: 0x{:04x}",
         }
     }
 
+    // 0xb8 - 0xbf
     fn cp_8bit_a_reg(&mut self, opcode: u8) -> CycleCount {
-        //0b10010_xxx
+        // basically the same, except we don't store the result
+        //0b10111_xxx
         let from_reg = opcode & 0b00_000_111;
 
         let val = self.read_reg(from_reg);
