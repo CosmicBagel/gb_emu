@@ -621,6 +621,17 @@ PC: 0x{:04x}",
     //0xa8
     fn xor_8bit_a_b(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.b;
+
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        self.f &= !N_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
         self.pc += 1;
         4
     }
@@ -628,6 +639,17 @@ PC: 0x{:04x}",
     //0xa9
     fn xor_8bit_a_c(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.c;
+
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        self.f &= !N_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
         self.pc += 1;
         4
     }
@@ -635,6 +657,17 @@ PC: 0x{:04x}",
     //0xaa
     fn xor_8bit_a_d(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.d;
+
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        self.f &= !N_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
         self.pc += 1;
         4
     }
@@ -642,6 +675,17 @@ PC: 0x{:04x}",
     //0xab
     fn xor_8bit_a_e(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.e;
+
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        self.f &= !N_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
         self.pc += 1;
         4
     }
@@ -649,6 +693,17 @@ PC: 0x{:04x}",
     //0xac
     fn xor_8bit_a_h(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.h;
+
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        self.f &= !N_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
         self.pc += 1;
         4
     }
@@ -656,6 +711,17 @@ PC: 0x{:04x}",
     //0xad
     fn xor_8bit_a_l(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.l;
+
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        self.f &= !N_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
         self.pc += 1;
         4
     }
@@ -663,13 +729,30 @@ PC: 0x{:04x}",
     //0xae
     fn xor_8bit_a_hl_indirect(&mut self, _: u8) -> CycleCount {
         self.a = self.a ^ self.mem[self.get_hl() as usize];
+
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        self.f &= !N_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
         self.pc += 1;
         4
     }
 
     //0xaf
     fn xor_8bit_a_a(&mut self, _: u8) -> CycleCount {
-        self.a = self.a ^ self.a;
+        self.a = 0;
+
+        self.f |= Z_FLAG_MASK; //always zero
+        self.f &= !N_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
+
         self.pc += 1;
         4
     }
