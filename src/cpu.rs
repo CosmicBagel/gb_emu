@@ -343,6 +343,37 @@ impl Cpu {
         self.l = value as u8;
     }
 
+    fn read_reg(&self, reg_index: u8) -> u8 {
+        // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => (HL), 7 => A
+        let hl = self.get_hl() as usize;
+        match reg_index {
+            0 => self.b,
+            1 => self.c,
+            2 => self.d,
+            3 => self.e,
+            4 => self.h,
+            5 => self.l,
+            6 => self.mem[hl],
+            7 => self.a,
+            _ => panic!("invalid from_reg value in load operation"),
+        }
+    }
+
+    fn write_reg(&mut self, reg_index: u8, value: u8) {
+        let hl = self.get_hl() as usize;
+        match reg_index {
+            0 => self.b = value,
+            1 => self.c = value,
+            2 => self.d = value,
+            3 => self.e = value,
+            4 => self.h = value,
+            5 => self.l = value,
+            6 => self.mem[hl] = value,
+            7 => self.a = value,
+            _ => panic!("invalid to_reg value in load operation"),
+        };
+    }
+
     fn dump_registers(&self) -> String {
         format!(
             "A: 0x{:02x}\tF: 0x{:02x}
@@ -506,8 +537,15 @@ PC: 0x{:04x}",
         table[0xfa] = Cpu::load_8bit_a_from_memory;
 
         for i in 0..64usize {
-            if 0x40 + i == 0x76 { continue; } // this is the halt op
+            if 0x40 + i == 0x76 {
+                // this is the halt op
+                continue;
+            }
             table[0x40 + i] = Cpu::load_8bit_reg_to_reg;
+        }
+
+        for i in 0..8usize {
+            table[0x80 + i] = Cpu::add_8bit_a_reg;
         }
 
         table[0xcd] = Cpu::call;
@@ -616,6 +654,47 @@ PC: 0x{:04x}",
         self.a = self.a ^ self.a;
         self.pc += 1;
         4
+    }
+
+    //0x80 - 0x87
+    fn add_8bit_a_reg(&mut self, opcode: u8) -> CycleCount {
+        //opcode 0b01_000_xxx
+        let from_reg = opcode & 0b00_000_111;
+
+        let val = self.read_reg(from_reg);
+        let (result, overflow_occurred) = self.a.overflowing_add(val);
+
+        //update flags
+        self.f &= !N_FLAG_MASK; // always flip N flag off (not subtraction)
+
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        //carry flag
+        if overflow_occurred {
+            self.f |= C_FLAG_MASK; // flip on
+        } else {
+            self.f &= !C_FLAG_MASK; // flip off
+        }
+
+        //half carry flag
+        if ((self.a & 0xf) + (val & 0xf)) & 0x10 == 0 {
+            self.f |= H_FLAG_MASK; // flip on
+        } else {
+            self.f &= !H_FLAG_MASK; // flip off
+        }
+
+        //store result
+        self.a = result;
+
+        if from_reg == 6 {
+            8
+        } else {
+            4
+        }
     }
 
     // note: this 16bit loads are little endian
@@ -806,32 +885,8 @@ PC: 0x{:04x}",
         let to_reg = opcode & 0b00_111_000 >> 3;
         let from_reg = opcode & 0b00_000_111;
 
-        let hl = self.get_hl() as usize;
-        // 0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => (HL), 7 => A
-        let read_val = match from_reg {
-            0 => self.b,
-            1 => self.c,
-            2 => self.d,
-            3 => self.e,
-            4 => self.h,
-            5 => self.l,
-            6 => self.mem[hl],
-            7 => self.a,
-            _ => panic!("invalid from_reg value in load operation"),
-        };
-
-        match to_reg {
-            0 => self.b = read_val,
-            1 => self.c = read_val,
-            2 => self.d = read_val,
-            3 => self.e = read_val,
-            4 => self.h = read_val,
-            5 => self.l = read_val,
-            6 => self.mem[hl] = read_val,
-            7 => self.a = read_val,
-            _ => panic!("invalid to_reg value in load operation"),
-        }
-
+        let read_val = self.read_reg(from_reg);
+        self.write_reg(to_reg, read_val);
         self.pc += 1;
 
         if from_reg == 6 || to_reg == 6 {
@@ -842,8 +897,7 @@ PC: 0x{:04x}",
     }
 
     //0xe0
-    fn load_8bit_io_from_a_immediate_offset(&mut self, _: u8) -> CycleCount 
-    {
+    fn load_8bit_io_from_a_immediate_offset(&mut self, _: u8) -> CycleCount {
         let offset = self.mem[self.pc + 1] as usize;
         self.mem[0xff00 + offset] = self.a;
         self.pc += 2;
@@ -851,8 +905,7 @@ PC: 0x{:04x}",
     }
 
     //0xf0
-    fn load_8bit_a_from_io_immediate_offset(&mut self, _: u8) -> CycleCount
-    {
+    fn load_8bit_a_from_io_immediate_offset(&mut self, _: u8) -> CycleCount {
         let offset = self.mem[self.pc + 1] as usize;
         self.a = self.mem[0xff00 + offset];
         self.pc += 2;
@@ -877,7 +930,7 @@ PC: 0x{:04x}",
     fn load_8bit_memory_from_a(&mut self, _: u8) -> CycleCount {
         let address = ((self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16) as usize;
         self.mem[address] = self.a;
-        self.pc  += 3;
+        self.pc += 3;
         16
     }
 
@@ -885,11 +938,9 @@ PC: 0x{:04x}",
     fn load_8bit_a_from_memory(&mut self, _: u8) -> CycleCount {
         let address = ((self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16) as usize;
         self.a = self.mem[address];
-        self.pc  += 3;
+        self.pc += 3;
         16
     }
-
-
 
     //call and returns
     // note: stack starts at 0xfffe, (and goes down in addresses)
