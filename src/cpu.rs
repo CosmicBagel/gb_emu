@@ -554,6 +554,8 @@ PC: 0x{:04x}",
             table[0x98 + i] = Cpu::sbc_8bit_a_reg;
         }
 
+        table[0xc6] = Cpu::add_8bit_a_immediate;
+
         table[0xcd] = Cpu::call;
         table[0xc4] = Cpu::call_conditional_nz;
         table[0xcc] = Cpu::call_conditional_z;
@@ -704,6 +706,45 @@ PC: 0x{:04x}",
         } else {
             4
         }
+    }
+
+    // 0xc6
+    fn add_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
+        let val = self.mem[self.pc + 1];
+        let (result, overflow_occurred) = self.a.overflowing_add(val);
+
+        //update flags
+        self.f &= !N_FLAG_MASK; // always flip N flag off (not subtraction)
+
+        //is result zero flag
+        if result == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        //carry flag
+        if overflow_occurred {
+            self.f |= C_FLAG_MASK; // flip on
+        } else {
+            self.f &= !C_FLAG_MASK; // flip off
+        }
+
+        //half carry flag
+        //mask out upper nibble and see if result flips 0x10 bit (meaning
+        //there was a half carry as result was greater than 0x0f)
+        if ((self.a & 0x0f) + (val & 0x0f)) & 0x10 == 0 {
+            self.f |= H_FLAG_MASK; // flip on
+        } else {
+            self.f &= !H_FLAG_MASK; // flip off
+        }
+
+        //store result
+        self.a = result;
+
+        self.pc += 2;
+
+        8
     }
 
     // 0x90 - 0x97
