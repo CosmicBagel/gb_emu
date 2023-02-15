@@ -546,6 +546,7 @@ PC: 0x{:04x}",
 
         for i in 0..8usize {
             table[0x80 + i] = Cpu::add_8bit_a_reg;
+            table[0x90 + i] = Cpu::sub_8bit_a_reg;
         }
 
         table[0xcd] = Cpu::call;
@@ -685,6 +686,49 @@ PC: 0x{:04x}",
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
         if ((self.a & 0xf) + (val & 0xf)) & 0x10 == 0 {
+            self.f |= H_FLAG_MASK; // flip on
+        } else {
+            self.f &= !H_FLAG_MASK; // flip off
+        }
+
+        //store result
+        self.a = result;
+
+        if from_reg == 6 {
+            8
+        } else {
+            4
+        }
+    }
+
+    fn sub_8bit_a_reg(&mut self, opcode: u8) -> CycleCount {
+        //0b10010_xxx
+        let from_reg = opcode & 0b00_000_111;
+
+        let val = self.read_reg(from_reg);
+        let (result, overflow_occurred) = self.a.overflowing_sub(val);
+
+        //update flags
+        self.f |= N_FLAG_MASK; // always flip N flag on 
+
+        //is result zero flag
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        //carry flag
+        if overflow_occurred {
+            self.f |= C_FLAG_MASK; // flip on
+        } else {
+            self.f &= !C_FLAG_MASK; // flip off
+        }
+
+        //half carry flag
+        //mask out upper nibble and see if result flips 0x10 bit (meaning
+        //there was a half carry as result was greater than 0x0f)
+        if (self.a & 0xf).wrapping_sub(val & 0xf) & 0x10 == 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
