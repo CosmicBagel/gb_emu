@@ -587,6 +587,11 @@ PC: 0x{:04x}",
         table[0x3f] = Cpu::ccf_8bit;
         table[0x2f] = Cpu::cpl_8bit;
 
+        table[0x07] = Cpu::rlca_8bit;
+        table[0x0f] = Cpu::rrca_8bit;
+        table[0x17] = Cpu::rla_8bit;
+        table[0x1f] = Cpu::rra_8bit;
+
         table[0xcd] = Cpu::call;
         table[0xc4] = Cpu::call_conditional_nz;
         table[0xcc] = Cpu::call_conditional_z;
@@ -1715,6 +1720,83 @@ PC: 0x{:04x}",
         self.a = self.mem[address];
         self.pc += 3;
         16
+    }
+
+    //8bit bit, rot, shift
+    //0x07
+    fn rlca_8bit(&mut self, _: u8) -> CycleCount {
+        //Rotates a to the left with bit 7 being moved to bit 0 and also stored into the carry
+
+        //store highest bit into carry
+        self.f = (self.f & !C_FLAG_MASK) | ((self.a & 0x80) >> 3);
+        self.f &= !Z_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.a = self.a.rotate_left(1);
+
+        self.pc += 1;
+
+        4
+    }
+
+    //0x0f
+    fn rrca_8bit(&mut self, _: u8) -> CycleCount {
+        //Rotates a to the right with bit 0 moved to bit 7 and also stored into the carry.
+
+        //store lowest bit into carry
+        self.f = (self.f & !C_FLAG_MASK) | ((self.a & 0x1) << 4);
+        self.f &= !Z_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.a = self.a.rotate_right(1);
+
+        self.pc += 1;
+
+        4
+    }
+
+    //0x17
+    fn rla_8bit(&mut self, _: u8) -> CycleCount {
+        // Rotates a register to the left with the carry's value put into bit 0 and bit 7 is put into the carry.
+        let high_bit = self.a >> 7;
+        let carry_bit = (self.f & C_FLAG_MASK ) >> 3;
+
+        //the current carry bit is placed as the lowest bit in a
+        self.a <<= 1;
+        self.a |= carry_bit;
+
+        //store highest bit into carry
+        self.f = (self.f & !C_FLAG_MASK) | (high_bit << 4);
+        self.f &= !Z_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.pc += 1;
+
+        4
+    }
+
+    //0x1f
+    fn rra_8bit(&mut self, _: u8) -> CycleCount {
+        //Rotates a to the right with the carry put into bit 7 and bit 0 put into the carry flag.
+        let low_bit = self.a & 0x01;
+        let carry_bit = (self.f & C_FLAG_MASK ) >> 3;
+
+        //the current carry bit is placed as the highest bit in a
+        self.a >>= 1;
+        self.a |= carry_bit << 7;
+
+        //store lowest bit into carry
+        self.f = (self.f & !C_FLAG_MASK) | (low_bit << 4);
+        self.f &= !Z_FLAG_MASK;
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.pc += 1;
+
+        4
     }
 
     //call and returns
