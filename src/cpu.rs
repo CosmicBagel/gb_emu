@@ -495,6 +495,11 @@ PC: 0x{:04x}",
         // actual opcodes
         table[0x00] = Cpu::nop;
         table[0xc3] = Cpu::jump;
+        table[0xe9] = Cpu::jump_hl;
+        table[0xc2] = Cpu::jump_conditional;
+        table[0xd2] = Cpu::jump_conditional;
+        table[0xca] = Cpu::jump_conditional;
+        table[0xda] = Cpu::jump_conditional;
         table[0x18] = Cpu::jr;
         table[0x20] = Cpu::jr_conditional;
         table[0x30] = Cpu::jr_conditional;
@@ -653,6 +658,54 @@ PC: 0x{:04x}",
         let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         self.pc = target as usize;
         16
+    }
+
+    //0xe9
+    fn jump_hl(&mut self, _: u8) -> CycleCount {
+        self.pc = self.get_hl() as usize;
+        4
+    }
+
+    //0xc2,d2,ca,da
+    fn jump_conditional(&mut self, opcode: u8) -> CycleCount {
+        //0b110cc010
+        let cc = (opcode & 0b000_11_000) >> 3;
+
+        // Cc Condition Flag
+        // 00 NZ        Z = 0
+        // 01 Z         Z = 1
+        // 10 NC        CY = 0
+        // 11 C         CY = 1
+
+        let mut condition = false;
+        match cc {
+            0 => {
+                //nz
+                condition = self.f & Z_FLAG_MASK == 0;
+            }
+            1 => {
+                //z
+                condition = self.f & Z_FLAG_MASK != 0;
+            }
+            2 => {
+                //nc
+                condition = self.f & C_FLAG_MASK == 0;
+            }
+            3 => {
+                //c
+                condition = self.f & C_FLAG_MASK != 0;
+            }
+            _ => {}
+        }
+
+        if condition {
+            let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+            self.pc = target as usize;
+            16
+        } else {
+            self.pc += 3;
+            12
+        }
     }
 
     //0x18
