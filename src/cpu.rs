@@ -495,6 +495,11 @@ PC: 0x{:04x}",
         // actual opcodes
         table[0x00] = Cpu::nop;
         table[0xc3] = Cpu::jump;
+        table[0x18] = Cpu::jr;
+        table[0x20] = Cpu::jr_conditional;
+        table[0x30] = Cpu::jr_conditional;
+        table[0x28] = Cpu::jr_conditional;
+        table[0x38] = Cpu::jr_conditional;
         table[0xcb] = Cpu::prefix;
 
         table[0xa8] = Cpu::xor_8bit_a_b;
@@ -648,6 +653,60 @@ PC: 0x{:04x}",
         let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         self.pc = target as usize;
         16
+    }
+
+    //0x18
+    fn jr(&mut self, _: u8) -> CycleCount {
+        let offset = self.mem[self.pc + 1] as i8;
+        // 2 is added at the end as the relative jump is supposed to
+        // be effected by reading the two bytes for the instruction
+        self.pc = (self.pc as i16 + offset as i16) as usize + 2;
+
+        12
+    }
+
+    //0x20,30,28,38
+    fn jr_conditional(&mut self, opcode: u8) -> CycleCount {
+        //0b001_cc_000
+        let cc = (opcode & 0b000_11_000) >> 3;
+
+        // Cc Condition Flag
+        // 00 NZ        Z = 0
+        // 01 Z         Z = 1
+        // 10 NC        CY = 0
+        // 11 C         CY = 1
+
+        let mut condition = false;
+        match cc {
+            0 => {
+                //nz
+                condition = self.f & Z_FLAG_MASK == 0;
+            }
+            1 => {
+                //z
+                condition = self.f & Z_FLAG_MASK != 0;
+            }
+            2 => {
+                //nc
+                condition = self.f & C_FLAG_MASK == 0;
+            }
+            3 => {
+                //c
+                condition = self.f & C_FLAG_MASK != 0;
+            }
+            _ => {}
+        }
+
+        if condition {
+            let offset = self.mem[self.pc + 1] as i8;
+            // 2 is added at the end as the relative jump is supposed to
+            // be effected by reading the two bytes for the instruction
+            self.pc = (self.pc as i16 + offset as i16) as usize + 2;
+            12
+        } else {
+            self.pc += 2;
+            8
+        }
     }
 
     //0xa8
@@ -1761,7 +1820,7 @@ PC: 0x{:04x}",
     fn rla_8bit(&mut self, _: u8) -> CycleCount {
         // Rotates a register to the left with the carry's value put into bit 0 and bit 7 is put into the carry.
         let high_bit = self.a >> 7;
-        let carry_bit = (self.f & C_FLAG_MASK ) >> 3;
+        let carry_bit = (self.f & C_FLAG_MASK) >> 3;
 
         //the current carry bit is placed as the lowest bit in a
         self.a <<= 1;
@@ -1782,7 +1841,7 @@ PC: 0x{:04x}",
     fn rra_8bit(&mut self, _: u8) -> CycleCount {
         //Rotates a to the right with the carry put into bit 7 and bit 0 put into the carry flag.
         let low_bit = self.a & 0x01;
-        let carry_bit = (self.f & C_FLAG_MASK ) >> 3;
+        let carry_bit = (self.f & C_FLAG_MASK) >> 3;
 
         //the current carry bit is placed as the highest bit in a
         self.a >>= 1;
