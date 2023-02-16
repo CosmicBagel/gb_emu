@@ -582,6 +582,8 @@ PC: 0x{:04x}",
         table[0x2d] = Cpu::dec_8bit_reg;
         table[0x3d] = Cpu::dec_8bit_reg;
 
+        table[0x27] = Cpu::daa_8bit;
+
         table[0xcd] = Cpu::call;
         table[0xc4] = Cpu::call_conditional_nz;
         table[0xcc] = Cpu::call_conditional_z;
@@ -1395,6 +1397,49 @@ PC: 0x{:04x}",
         } else {
             4
         }
+    }
+
+    //0x27
+    fn daa_8bit(&mut self, _: u8) -> CycleCount {
+        // using flags, determines the binary coded decimal format of the last result
+        // used https://forums.nesdev.org/viewtopic.php?t=15944
+        // the gameboy cpu has specific quirks that makes this tricky to figure out
+        // if you're relying on z80 documentation
+        let n_flag = (self.f & N_FLAG_MASK) >> 7;
+        let h_flag = (self.f & H_FLAG_MASK) >> 5;
+        let c_flag = (self.f & C_FLAG_MASK) >> 4;
+
+        if n_flag == 0 {
+            // after an addition, adjust if (half-)carry occurred or if result is out of bounds
+            if c_flag == 1 || self.a > 0x99 {
+                self.a += 0x60;
+                self.f |= C_FLAG_MASK;
+            }
+            if h_flag == 1 || (self.a & 0x0f) > 0x09 {
+                self.a += 0x06;
+            }
+        } else {
+            // after a subtraction, only adjust if (half-)carry occurred
+            if c_flag == 1 {
+                self.a -= 0x60;
+            }
+            if h_flag == 1 {
+                self.a -= 0x06;
+            }
+
+
+        }
+
+        // // these flags are always updated
+        if self.a == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        self.f &= !H_FLAG_MASK; //turn off h flag
+
+        4
     }
 
     // note: this 16bit loads are little endian
