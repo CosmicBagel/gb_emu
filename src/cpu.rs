@@ -1426,8 +1426,6 @@ PC: 0x{:04x}",
             if h_flag == 1 {
                 self.a -= 0x06;
             }
-
-
         }
 
         // // these flags are always updated
@@ -1439,6 +1437,10 @@ PC: 0x{:04x}",
 
         self.f &= !H_FLAG_MASK; //turn off h flag
 
+        self.pc += 1;
+
+        4
+    }
         4
     }
 
