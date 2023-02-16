@@ -583,6 +583,9 @@ PC: 0x{:04x}",
         table[0x3d] = Cpu::dec_8bit_reg;
 
         table[0x27] = Cpu::daa_8bit;
+        table[0x37] = Cpu::scf_8bit;
+        table[0x3f] = Cpu::ccf_8bit;
+        table[0x2f] = Cpu::cpl_8bit;
 
         table[0xcd] = Cpu::call;
         table[0xc4] = Cpu::call_conditional_nz;
@@ -1441,6 +1444,31 @@ PC: 0x{:04x}",
 
         4
     }
+
+    //0x37
+    fn scf_8bit(&mut self, _: u8) -> CycleCount {
+        self.f |= C_FLAG_MASK;
+        self.f &= !N_FLAG_MASK; // turn off n flag
+        self.f &= !H_FLAG_MASK; //turn off h flag
+        self.pc += 1;
+        4
+    }
+
+    //0x3f
+    fn ccf_8bit(&mut self, _: u8) -> CycleCount {
+        self.f ^= C_FLAG_MASK;
+        self.f &= !N_FLAG_MASK; // turn off n flag
+        self.f &= !H_FLAG_MASK; //turn off h flag
+        self.pc += 1;
+        4
+    }
+
+    //0x2f
+    fn cpl_8bit(&mut self, _: u8) -> CycleCount {
+        self.a ^= 0xff;
+        self.f |= N_FLAG_MASK; //turn on n flag
+        self.f |= H_FLAG_MASK; //turn on h flag
+        self.pc += 1;
         4
     }
 
