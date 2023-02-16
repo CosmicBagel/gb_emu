@@ -564,6 +564,24 @@ PC: 0x{:04x}",
         table[0xee] = Cpu::xor_8bit_a_immediate;
         table[0xfe] = Cpu::cp_8bit_a_immediate;
 
+        table[0x04] = Cpu::inc_8bit_reg;
+        table[0x14] = Cpu::inc_8bit_reg;
+        table[0x24] = Cpu::inc_8bit_reg;
+        table[0x34] = Cpu::inc_8bit_reg;
+        table[0x0c] = Cpu::inc_8bit_reg;
+        table[0x1c] = Cpu::inc_8bit_reg;
+        table[0x2c] = Cpu::inc_8bit_reg;
+        table[0x3c] = Cpu::inc_8bit_reg;
+
+        table[0x05] = Cpu::dec_8bit_reg;
+        table[0x15] = Cpu::dec_8bit_reg;
+        table[0x25] = Cpu::dec_8bit_reg;
+        table[0x35] = Cpu::dec_8bit_reg;
+        table[0x0d] = Cpu::dec_8bit_reg;
+        table[0x1d] = Cpu::dec_8bit_reg;
+        table[0x2d] = Cpu::dec_8bit_reg;
+        table[0x3d] = Cpu::dec_8bit_reg;
+
         table[0xcd] = Cpu::call;
         table[0xc4] = Cpu::call_conditional_nz;
         table[0xcc] = Cpu::call_conditional_z;
@@ -1315,6 +1333,68 @@ PC: 0x{:04x}",
         self.pc += 2;
 
         8
+    }
+
+    //0x04,14,24,34,0c,1c,2c,3c
+    fn inc_8bit_reg(&mut self, opcode: u8) -> CycleCount {
+        //0b00_xxx_100
+        let from_reg = opcode & 0b00_111_000 >> 3;
+        let val = self.read_reg(from_reg);
+        let result = val.wrapping_add(1);
+
+        self.f &= !N_FLAG_MASK;
+
+        //is result zero flag
+        if result == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        if (val & 0x0f) == 0x0f {
+            self.f |= H_FLAG_MASK; // flip on
+        } else {
+            self.f &= !H_FLAG_MASK; // flip off
+        }
+
+        self.write_reg(from_reg, result);
+
+        if from_reg == 6 {
+            12
+        } else {
+            4
+        }
+    }
+
+    //0x05,15,25,35,0d,1d,2d,3d
+    fn dec_8bit_reg(&mut self, opcode: u8) -> CycleCount {
+        //0b00_xxx_101
+        let from_reg = opcode & 0b00_111_000 >> 3;
+        let val = self.read_reg(from_reg);
+        let result = val.wrapping_sub(1);
+
+        self.f |= N_FLAG_MASK;
+
+        //is result zero flag
+        if result == 0 {
+            self.f |= Z_FLAG_MASK; // flip on
+        } else {
+            self.f &= !Z_FLAG_MASK; // flip off
+        }
+
+        if (val & 0x0f) == 0x00 {
+            self.f |= H_FLAG_MASK; // flip on
+        } else {
+            self.f &= !H_FLAG_MASK; // flip off
+        }
+
+        self.write_reg(from_reg, result);
+
+        if from_reg == 6 {
+            12
+        } else {
+            4
+        }
     }
 
     // note: this 16bit loads are little endian
