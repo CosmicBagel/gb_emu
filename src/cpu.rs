@@ -614,6 +614,15 @@ PC: 0x{:04x}",
         table[0xd8] = Cpu::ret_conditional_c;
         table[0xd9] = Cpu::reti;
 
+        table[0xc7] = Cpu::rst;
+        table[0xd7] = Cpu::rst;
+        table[0xe7] = Cpu::rst;
+        table[0xf7] = Cpu::rst;
+        table[0xcf] = Cpu::rst;
+        table[0xdf] = Cpu::rst;
+        table[0xef] = Cpu::rst;
+        table[0xff] = Cpu::rst;
+
         table[0xf3] = Cpu::disable_interrupt;
         table[0xfb] = Cpu::enable_interrupt;
 
@@ -760,6 +769,28 @@ PC: 0x{:04x}",
             self.pc += 2;
             8
         }
+    }
+
+    //0xc7,d7,e7,f7,cf,df,ef,ff
+    fn rst(&mut self, opcode: u8) -> CycleCount {
+        //0b11xxx111
+        let operand = (opcode & 0b00111000) >> 3;
+        let mut target = 0x0000 as u16;
+        match operand {
+            0 => target = 0x0000,
+            1 => target = 0x0008,
+            2 => target = 0x0010,
+            3 => target = 0x0018,
+            4 => target = 0x0020,
+            5 => target = 0x0028,
+            6 => target = 0x0030,
+            7 => target = 0x0038,
+            _ => {}
+        }
+
+        self.helper_call(target);
+
+        16
     }
 
     //0xa8
