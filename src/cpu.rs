@@ -359,7 +359,7 @@ impl Cpu {
         //0 out the interrupt flag bit
         self.mem[INTERRUPT_FLAG_ADDRESS] ^= flag_mask;
         self.interrupt_master_enable = false;
-        self.helper_call(address);
+        self.helper_call(address, self.pc);
         //needs to wait 20 cycles
     }
 
@@ -843,7 +843,7 @@ PC: 0x{:04x}",
             _ => {}
         }
 
-        self.helper_call(target);
+        self.helper_call(target, self.pc + 1);
 
         16
     }
@@ -2011,7 +2011,9 @@ PC: 0x{:04x}",
     // 0xcd
     fn call(&mut self, _: u8) -> CycleCount {
         let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
-        self.helper_call(target);
+        // offset the return PC by 3 as this is a 3 byte instruction that should
+        // not be repeated
+        self.helper_call(target, self.pc + 3);
         24
     }
 
@@ -2024,7 +2026,7 @@ PC: 0x{:04x}",
         if self.f & (Z_FLAG_MASK | N_FLAG_MASK) == 0 {
             return 12;
         }
-        self.helper_call(target);
+        self.helper_call(target, self.pc + 3);
         24
     }
     // 0xcc z  cc = 01
@@ -2034,7 +2036,7 @@ PC: 0x{:04x}",
         if self.f & Z_FLAG_MASK == 0 {
             return 12;
         }
-        self.helper_call(target);
+        self.helper_call(target, self.pc + 3);
         24
     }
     // 0xd4 nc cc = 10
@@ -2044,7 +2046,7 @@ PC: 0x{:04x}",
         if self.f & (N_FLAG_MASK | C_FLAG_MASK) == 0 {
             return 12;
         }
-        self.helper_call(target);
+        self.helper_call(target, self.pc + 3);
         24
     }
     // 0xdc c  cc = 11
@@ -2054,15 +2056,13 @@ PC: 0x{:04x}",
         if self.f & C_FLAG_MASK == 0 {
             return 12;
         }
-        self.helper_call(target);
+        self.helper_call(target, self.pc + 3);
         24
     }
 
     // handles common call functionality
-    fn helper_call(&mut self, target: u16) {
-        // offset the return PC by 3 as this is a 3 byte instruction that should
-        // not be repeated
-        let return_pc = self.pc + 3;
+    fn helper_call(&mut self, target: u16, return_pc: usize) {
+
         let lesser_pc = return_pc as u8;
         let major_pc = (return_pc >> 8) as u8;
 
