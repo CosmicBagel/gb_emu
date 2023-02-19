@@ -34,7 +34,7 @@ fn main() {
 
      */
 
-    let filename = "cpu_instrs.gb";
+    let filename = "01-special.gb";
     let mut cpu = Cpu::new();
     cpu.load_rom(filename);
     cpu.run();
