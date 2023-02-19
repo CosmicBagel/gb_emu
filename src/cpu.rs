@@ -185,6 +185,8 @@ impl Cpu {
         // there are about 245 unique opcodes
         // 112 implemented so far
         // 0 have tests
+        let limit = 20_000u32;
+        let mut count = 0u32;
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
             // unless there's a reason to allow it
@@ -248,6 +250,11 @@ impl Cpu {
                 self.mem[self.pc + 3]
             )
             .unwrap();
+
+            count += 1;
+            if count >= limit {
+                break;
+            }
 
             // check for interrupts and adjust PC accordingly
             // EI (0xfb) is delayed by one instruction (calling DI right after
