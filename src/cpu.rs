@@ -569,6 +569,8 @@ PC: 0x{:04x}",
         table[0x31] = Cpu::load_16bit_sp_immediate_value;
 
         table[0x08] = Cpu::load_16bit_sp_indirect_value;
+        table[0xf8] = Cpu::load_16bit_hl_sp_offset;
+        table[0xf9] = Cpu::load_16bit_sp_from_hl;
 
         table[0x06] = Cpu::load_8bit_b_immediate_value;
         table[0x0e] = Cpu::load_8bit_c_immediate_value;
@@ -1722,6 +1724,58 @@ PC: 0x{:04x}",
 
         self.pc += 3;
         20
+    }
+
+    //0xf8
+    fn load_16bit_hl_sp_offset(&mut self, _: u8) -> CycleCount {
+        let value = (self.mem[self.pc] as i8) as i16;
+        let mut sp = self.sp as u16;
+        let overflow;
+        let result;
+        if value >= 0 {
+            let value = value as u16;
+            let (r, o) = sp.overflowing_add(value);
+            result = r;
+            overflow = o;
+            //16bit half carry triggered by carry between 11th and 12th bit
+            if ((sp & 0x0fff) + (value & 0x0fff)) & 0x1000 == 0 {
+                self.f |= H_FLAG_MASK;
+            } else {
+                self.f &= !H_FLAG_MASK;
+            }
+        } else {
+            let value = (value * -1) as u16;
+            let (r, o) = sp.overflowing_sub(value);
+            result = r;
+            overflow = o;
+            if (sp & 0x0fff).wrapping_sub(value & 0x0fff) & 0x1000 == 0 {
+                self.f |= H_FLAG_MASK;
+            } else {
+                self.f &= !H_FLAG_MASK;
+            }
+        }
+
+        sp = result;
+        if overflow {
+            self.f |= C_FLAG_MASK;
+        } else {
+            self.f &= !C_FLAG_MASK;
+        }
+
+        self.f &= !Z_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.set_hl(sp as u16);
+        self.pc += 2;
+
+        12
+    }
+
+    //0xf9
+    fn load_16bit_sp_from_hl(&mut self, _: u8) -> CycleCount {
+        self.sp = self.get_hl() as usize;
+        self.pc += 1;
+        8
     }
 
     //0x06
