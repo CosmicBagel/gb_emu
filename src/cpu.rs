@@ -444,7 +444,7 @@ PC: 0x{:04x}",
         self.e = 0xd8;
         self.h = 0x01;
         self.l = 0x4d;
-        self.pc = 0x100;
+        self.pc = 0x0100;
         self.sp = 0xfffe;
 
         // hardware registers
