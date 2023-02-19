@@ -568,6 +568,8 @@ PC: 0x{:04x}",
         table[0x21] = Cpu::load_16bit_hl_immediate_value;
         table[0x31] = Cpu::load_16bit_sp_immediate_value;
 
+        table[0x08] = Cpu::load_16bit_sp_indirect_value;
+
         table[0x06] = Cpu::load_8bit_b_immediate_value;
         table[0x0e] = Cpu::load_8bit_c_immediate_value;
         table[0x16] = Cpu::load_8bit_d_immediate_value;
@@ -1708,6 +1710,18 @@ PC: 0x{:04x}",
         self.sp = value as usize;
         self.pc += 3;
         12
+    }
+
+    //0x08
+    fn load_16bit_sp_indirect_value(&mut self, _: u8) -> CycleCount {
+        let target = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        // set lower byte
+        self.mem[target as usize] = (self.sp & 0x00ff) as u8;
+        // set higher byte
+        self.mem[(target + 1) as usize] = (self.sp >> 8) as u8;
+
+        self.pc += 3;
+        20
     }
 
     //0x06
