@@ -1539,7 +1539,7 @@ PC: 0x{:04x}",
     //0x04,14,24,34,0c,1c,2c,3c
     fn inc_8bit_reg(&mut self, opcode: u8) -> CycleCount {
         //0b00_xxx_100
-        let from_reg = opcode & 0b00_111_000 >> 3;
+        let from_reg = (opcode & 0b00_111_000) >> 3;
         let val = self.read_reg(from_reg);
         let result = val.wrapping_add(1);
 
@@ -1570,7 +1570,7 @@ PC: 0x{:04x}",
     //0x05,15,25,35,0d,1d,2d,3d
     fn dec_8bit_reg(&mut self, opcode: u8) -> CycleCount {
         //0b00_xxx_101
-        let from_reg = opcode & 0b00_111_000 >> 3;
+        let from_reg = (opcode & 0b00_111_000) >> 3;
         let val = self.read_reg(from_reg);
         let result = val.wrapping_sub(1);
 
@@ -1853,7 +1853,7 @@ PC: 0x{:04x}",
     //0x40 through 0x7f, but NOT 0x76 that's HALT
     fn load_8bit_reg_to_reg(&mut self, opcode: u8) -> CycleCount {
         //opcode 0b01_xxx_yyy
-        let to_reg = opcode & 0b00_111_000 >> 3;
+        let to_reg = (opcode & 0b00_111_000) >> 3;
         let from_reg = opcode & 0b00_000_111;
 
         let read_val = self.read_reg(from_reg);
