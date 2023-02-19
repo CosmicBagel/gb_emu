@@ -2060,8 +2060,11 @@ PC: 0x{:04x}",
 
     // handles common call functionality
     fn helper_call(&mut self, target: u16) {
-        let lesser_pc = self.pc as u8;
-        let major_pc = (self.pc >> 8) as u8;
+        // offset the return PC by 3 as this is a 3 byte instruction that should
+        // not be repeated
+        let return_pc = self.pc + 3;
+        let lesser_pc = return_pc as u8;
+        let major_pc = (return_pc >> 8) as u8;
 
         self.mem[self.sp - 1] = major_pc;
         self.mem[self.sp - 2] = lesser_pc;
