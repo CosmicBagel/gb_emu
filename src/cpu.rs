@@ -1559,6 +1559,7 @@ PC: 0x{:04x}",
         }
 
         self.write_reg(from_reg, result);
+        self.pc += 1;
 
         if from_reg == 6 {
             12
@@ -1590,6 +1591,7 @@ PC: 0x{:04x}",
         }
 
         self.write_reg(from_reg, result);
+        self.pc += 1;
 
         if from_reg == 6 {
             12
