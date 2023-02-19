@@ -80,10 +80,15 @@ pub struct Cpu {
     // enable_interrupt will set this to 2, (enabling ime is checked after each instruction)
     // disable_interrupt will set this to 0, to stop ime from being enabled
     ei_delay: u8,
+
+    dr_log: File,
 }
 
 impl Cpu {
     pub fn new() -> Cpu {
+        let dr_log_path = "dr_log.txt";
+        let log_output = File::create(dr_log_path).unwrap();
+
         Cpu {
             a: 0x00,
             f: 0x00,
@@ -103,6 +108,8 @@ impl Cpu {
             ei_delay: 0,
 
             interrupt_master_enable: true,
+
+            dr_log: log_output,
         }
     }
 
@@ -165,16 +172,21 @@ impl Cpu {
         let cycles_per_sleep = 20_000u32;
         let mut cycle_count_since_last_sleep = 0u32;
 
+        write!(
+            self.dr_log, "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n", 
+            self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc,
+            self.mem[self.pc], self.mem[self.pc + 1], self.mem[self.pc + 2], self.mem[self.pc + 3]
+            ).unwrap();
+
         // there are about 245 unique opcodes
         // 112 implemented so far
         // 0 have tests
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
             // unless there's a reason to allow it
-            if self.pc > 0x7fff {
-                println!("attempted to execute outside of rom space");
-                exit(0);
-            }
+
+            //hack for gb dr
+            self.mem[0xff44] = 0x90;
 
             let opcode = self.mem[self.pc];
             println!("{:#02x}: {:02x}", self.pc, opcode);
@@ -208,6 +220,30 @@ impl Cpu {
                     self.interrupt_master_enable = true;
                 }
             }
+
+            write!(
+                self.dr_log,
+                "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
+                self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
+            )
+            .unwrap();
+
+            write!(self.dr_log, "SP:{:04X} PC:{:04X} ", self.sp, self.pc).unwrap();
+            if self.pc > 0xffff {
+                panic!(
+                    "Program counter exceeding address space!!! {}",
+                    self.dump_registers()
+                );
+            }
+            write!(
+                self.dr_log,
+                "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
+                self.mem[self.pc],
+                self.mem[self.pc + 1],
+                self.mem[self.pc + 2],
+                self.mem[self.pc + 3]
+            )
+            .unwrap();
 
             // check for interrupts and adjust PC accordingly
             // EI (0xfb) is delayed by one instruction (calling DI right after
