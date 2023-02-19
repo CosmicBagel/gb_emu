@@ -580,8 +580,8 @@ PC: 0x{:04x}",
         table[0x2a] = Cpu::load_8bit_a_from_hl_inc_indirect;
         table[0x3a] = Cpu::load_8bit_a_from_hl_dec_indirect;
 
-        table[0xe0] = Cpu::load_8bit_a_from_io_immediate_offset;
-        table[0xf0] = Cpu::load_8bit_io_from_a_immediate_offset;
+        table[0xf0] = Cpu::load_8bit_a_from_io_immediate_offset;
+        table[0xe0] = Cpu::load_8bit_io_from_a_immediate_offset;
         table[0xe2] = Cpu::load_8bit_a_from_io_c_offset;
         table[0xf2] = Cpu::load_8bit_io_from_a_c_offset;
         table[0xea] = Cpu::load_8bit_memory_from_a;
