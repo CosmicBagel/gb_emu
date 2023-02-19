@@ -6,7 +6,7 @@ use std::{
 };
 
 pub type CycleCount = u32;
-type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 255];
+type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 256];
 
 const Z_FLAG_MASK: u8 = 0b1000_0000;
 const N_FLAG_MASK: u8 = 0b0100_0000;
@@ -515,7 +515,7 @@ PC: 0x{:04x}",
 
     fn build_bytecode_table() -> BytecodeTable {
         // initialize table with all opcodes as not_implemented
-        let mut table: BytecodeTable = [Cpu::not_implemented; 255];
+        let mut table: BytecodeTable = [Cpu::not_implemented; 256];
 
         // invalid opcodes (there are 11 invalid opcodes)
         table[0xd3] = Cpu::invalid_opcode;
@@ -671,7 +671,7 @@ PC: 0x{:04x}",
 
     fn build_cb_bytecode_table() -> BytecodeTable {
         // initialize table with all opcodes as not_implemented
-        let mut table: BytecodeTable = [Cpu::not_implemented; 255];
+        let mut table: BytecodeTable = [Cpu::not_implemented; 256];
 
         table[0x00] = Cpu::not_implemented;
 
