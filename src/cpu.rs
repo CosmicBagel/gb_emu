@@ -1,5 +1,9 @@
 use spin_sleep;
-use std::{fs::read, process::exit, thread, time};
+use std::io::Write;
+use std::{
+    fs::{read, File},
+    thread, time,
+};
 
 pub type CycleCount = u32;
 type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 255];
