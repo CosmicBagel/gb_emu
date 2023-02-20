@@ -674,6 +674,15 @@ PC: 0x{:04x}",
         table[0xef] = Cpu::rst;
         table[0xff] = Cpu::rst;
 
+        table[0xc1] = Cpu::pop;
+        table[0xd1] = Cpu::pop;
+        table[0xe1] = Cpu::pop;
+        table[0xf1] = Cpu::pop;
+        table[0xc5] = Cpu::push;
+        table[0xd5] = Cpu::push;
+        table[0xe5] = Cpu::push;
+        table[0xf5] = Cpu::push;
+
         table[0xf3] = Cpu::disable_interrupt;
         table[0xfb] = Cpu::enable_interrupt;
 
@@ -2198,6 +2207,50 @@ PC: 0x{:04x}",
     fn helper_return(&mut self) {
         self.pc = ((self.mem[self.sp + 1] as usize) << 8) | self.mem[self.sp] as usize;
         self.sp += 2;
+    }
+
+    // push & pop
+    // 0xc1,d1,e1,f1
+    fn pop(&mut self, opcode: u8) -> CycleCount {
+        //0b11_xx_0001
+        let qq_code = (opcode & 0b00_11_0000) >> 4;
+        let stack_high = self.mem[self.sp + 1];
+        let stack_low = self.mem[self.sp];
+        //BC 00, DD 01, HL 10, SP 11
+        match qq_code {
+            0 => (self.b, self.c) = (stack_high, stack_low),
+            1 => (self.d, self.e) = (stack_high, stack_low),
+            2 => (self.h, self.l) = (stack_high, stack_low),
+            3 => (self.a, self.f) = (stack_high, stack_low),
+            _ => panic!("invalid qq code"),
+        }
+
+        self.sp += 2;
+        self.pc += 1;
+
+        12
+    }
+
+    // 0xc5,d5,e5,f5
+    fn push(&mut self, opcode: u8) -> CycleCount {
+        //0b11_xx_0101
+        let qq_code = (opcode & 0b00_11_0000) >> 4;
+        let (high_value, low_value);
+        //BC 00, DD 01, HL 10, SP 11
+        match qq_code {
+            0 => (high_value, low_value) = (self.b, self.c),
+            1 => (high_value, low_value) = (self.d, self.e),
+            2 => (high_value, low_value) = (self.h, self.l),
+            3 => (high_value, low_value) = (self.a, self.f),
+            _ => panic!("invalid qq code"),
+        }
+        self.mem[self.sp - 1] = low_value;
+        self.mem[self.sp - 2] = high_value;
+        
+        self.sp -= 2;
+        self.pc += 1;
+
+        16
     }
 
     // interrupt enable / disable
