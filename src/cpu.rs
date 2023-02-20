@@ -611,6 +611,14 @@ PC: 0x{:04x}",
         table[0x19] = Cpu::add_16bit_hl_from_reg;
         table[0x29] = Cpu::add_16bit_hl_from_reg;
         table[0x39] = Cpu::add_16bit_hl_from_reg;
+        table[0x03] = Cpu::inc_16bit_reg;
+        table[0x13] = Cpu::inc_16bit_reg;
+        table[0x23] = Cpu::inc_16bit_reg;
+        table[0x33] = Cpu::inc_16bit_reg;
+        table[0x0b] = Cpu::dec_16bit_reg;
+        table[0x1b] = Cpu::dec_16bit_reg;
+        table[0x2b] = Cpu::dec_16bit_reg;
+        table[0x3b] = Cpu::dec_16bit_reg;
 
         for i in 0..8usize {
             table[0x80 + i] = Cpu::add_8bit_a_reg;
@@ -1864,6 +1872,40 @@ PC: 0x{:04x}",
         self.f &= !N_FLAG_MASK;
 
         self.set_hl(result);
+
+        self.pc += 1;
+
+        8
+    }
+
+    //0x03,13,23,33
+    fn inc_16bit_reg(&mut self, opcode: u8) -> CycleCount {
+        //0b00xx0011
+        let reg_code = (opcode & 0b00110000) >> 4;
+        match reg_code {
+            0 => self.set_bc(self.get_bc().wrapping_add(1)),
+            1 => self.set_de(self.get_de().wrapping_add(1)),
+            2 => self.set_hl(self.get_hl().wrapping_add(1)),
+            3 => self.sp = (self.sp as u16).wrapping_add(1) as usize,
+            _ => panic!("invalid reg code"),
+        }
+
+        self.pc += 1;
+
+        8
+    }
+
+    //0x0b,1b,2b,3b
+    fn dec_16bit_reg(&mut self, opcode: u8) -> CycleCount {
+        //0b00xx1011
+        let reg_code = (opcode & 0b00110000) >> 4;
+        match reg_code {
+            0 => self.set_bc(self.get_bc().wrapping_sub(1)),
+            1 => self.set_de(self.get_de().wrapping_sub(1)),
+            2 => self.set_hl(self.get_hl().wrapping_sub(1)),
+            3 => self.sp = (self.sp as u16).wrapping_add(1) as usize,
+            _ => panic!("invalid reg code"),
+        }
 
         self.pc += 1;
 
