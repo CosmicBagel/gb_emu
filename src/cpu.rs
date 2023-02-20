@@ -606,6 +606,12 @@ PC: 0x{:04x}",
             table[0x40 + i] = Cpu::load_8bit_reg_to_reg;
         }
 
+        table[0xe8] = Cpu::add_16bit_sp_r8_immediate;
+        table[0x09] = Cpu::add_16bit_hl_from_reg;
+        table[0x19] = Cpu::add_16bit_hl_from_reg;
+        table[0x29] = Cpu::add_16bit_hl_from_reg;
+        table[0x39] = Cpu::add_16bit_hl_from_reg;
+
         for i in 0..8usize {
             table[0x80 + i] = Cpu::add_8bit_a_reg;
             table[0x90 + i] = Cpu::sub_8bit_a_reg;
@@ -1784,6 +1790,83 @@ PC: 0x{:04x}",
     fn load_16bit_sp_from_hl(&mut self, _: u8) -> CycleCount {
         self.sp = self.get_hl() as usize;
         self.pc += 1;
+        8
+    }
+
+    //0xe8
+    fn add_16bit_sp_r8_immediate(&mut self, _: u8) -> CycleCount {
+        //flags 00hc
+        //SP = SP +/- dd ; dd is 8-bit signed number
+        let val = (self.mem[self.pc + 1] as i8) as i16;
+        let result;
+        let overflow;
+        if val >= 0 {
+            let val = val as usize;
+            (result, overflow) = self.sp.overflowing_add(val);
+            if ((self.sp & 0x0fff) + (val & 0x0fff)) & 0x1000 == 0 {
+                self.f |= H_FLAG_MASK;
+            } else {
+                self.f &= !H_FLAG_MASK;
+            }
+        } else {
+            let val = (val * -1) as usize;
+            (result, overflow) = self.sp.overflowing_sub(val);
+            if (self.sp & 0x0fff).wrapping_sub(val & 0x0fff) & 0x1000 == 0 {
+                self.f |= H_FLAG_MASK;
+            } else {
+                self.f &= !H_FLAG_MASK;
+            }
+        }
+
+        self.sp = result;
+
+        if overflow {
+            self.f |= C_FLAG_MASK;
+        } else {
+            self.f &= !C_FLAG_MASK;
+        }
+
+        self.f &= !Z_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.pc += 2;
+
+        16
+    }
+
+    //0x09,19,29,39
+    fn add_16bit_hl_from_reg(&mut self, opcode: u8) -> CycleCount {
+        //0b00xx1001
+        // flags -0hc
+        let reg_code = (opcode & 0b00110000) >> 4;
+        let val;
+        match reg_code {
+            0 => val = self.get_bc(),
+            1 => val = self.get_de(),
+            2 => val = self.get_hl(),
+            3 => val = self.sp as u16,
+            _ => panic!("invalid reg code"),
+        }
+
+        let hl = self.get_hl();
+        let (result, overflow) = hl.overflowing_add(val);
+
+        if overflow {
+            self.f |= C_FLAG_MASK;
+        } else {
+            self.f &= !C_FLAG_MASK;
+        }
+        if ((hl & 0x0fff) + (val & 0x0fff)) & 0x1000 == 0 {
+            self.f |= H_FLAG_MASK;
+        } else {
+            self.f &= !H_FLAG_MASK;
+        }
+        self.f &= !N_FLAG_MASK;
+
+        self.set_hl(result);
+
+        self.pc += 1;
+
         8
     }
 
