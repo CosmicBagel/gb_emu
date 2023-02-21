@@ -1061,7 +1061,7 @@ PC: 0x{:04x}",
         //half carry flag
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
-        if ((self.a & 0x0f) + (val & 0x0f)) & 0x10 == 0 {
+        if ((self.a & 0x0f) + (val & 0x0f)) & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1103,7 +1103,7 @@ PC: 0x{:04x}",
         //half carry flag
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
-        if ((self.a & 0x0f) + (val & 0x0f)) & 0x10 == 0 {
+        if ((self.a & 0x0f) + (val & 0x0f)) & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1145,7 +1145,7 @@ PC: 0x{:04x}",
         //half carry flag
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
-        if (self.a & 0x0f).wrapping_sub(val & 0x0f) & 0x10 == 0 {
+        if (self.a & 0x0f).wrapping_sub(val & 0x0f) & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1188,7 +1188,7 @@ PC: 0x{:04x}",
         //half carry flag
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
-        if (self.a & 0x0f).wrapping_sub(val & 0x0f) & 0x10 == 0 {
+        if (self.a & 0x0f).wrapping_sub(val & 0x0f) & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1336,7 +1336,7 @@ PC: 0x{:04x}",
         //half carry flag
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
-        if (self.a & 0x0f).wrapping_sub(val & 0x0f) & 0x10 == 0 {
+        if (self.a & 0x0f).wrapping_sub(val & 0x0f) & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1378,7 +1378,7 @@ PC: 0x{:04x}",
         //half carry flag
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
-        if (self.a & 0x0f).wrapping_sub(val & 0x0f) & 0x10 == 0 {
+        if (self.a & 0x0f).wrapping_sub(val & 0x0f) & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1420,7 +1420,7 @@ PC: 0x{:04x}",
         //half carry flag
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
-        if ((self.a & 0x0f) + (val & 0x0f) + last_carry_bit) & 0x10 == 0 {
+        if ((self.a & 0x0f) + (val & 0x0f) + last_carry_bit) & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1465,7 +1465,7 @@ PC: 0x{:04x}",
         //half carry flag
         //mask out upper nibble and see if result flips 0x10 bit (meaning
         //there was a half carry as result was greater than 0x0f)
-        if ((self.a & 0x0f) + (val & 0x0f) + last_carry_bit) & 0x10 == 0 {
+        if ((self.a & 0x0f) + (val & 0x0f) + last_carry_bit) & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1510,7 +1510,7 @@ PC: 0x{:04x}",
         //there was a half carry as result was greater than 0x0f)
         let sub_a = (self.a & 0x0f).wrapping_sub(val & 0x0f);
         let sub_b = sub_a.wrapping_sub(last_carry_bit);
-        if sub_b & 0x10 == 0 {
+        if sub_b & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1557,7 +1557,7 @@ PC: 0x{:04x}",
         //there was a half carry as result was greater than 0x0f)
         let sub_a = (self.a & 0x0f).wrapping_sub(val & 0x0f);
         let sub_b = sub_a.wrapping_sub(last_carry_bit);
-        if sub_b & 0x10 == 0 {
+        if sub_b & 0x10 != 0 {
             self.f |= H_FLAG_MASK; // flip on
         } else {
             self.f &= !H_FLAG_MASK; // flip off
@@ -1771,7 +1771,7 @@ PC: 0x{:04x}",
             let (r, o) = sp.overflowing_sub(value);
             result = r;
             overflow = o;
-            if (sp & 0x0fff).wrapping_sub(value & 0x0fff) & 0x1000 == 0 {
+            if (sp & 0x0fff).wrapping_sub(value & 0x0fff) & 0x1000 != 0 {
                 self.f |= H_FLAG_MASK;
             } else {
                 self.f &= !H_FLAG_MASK;
@@ -1819,7 +1819,7 @@ PC: 0x{:04x}",
         } else {
             let val = (val * -1) as usize;
             (result, overflow) = self.sp.overflowing_sub(val);
-            if (self.sp & 0x0fff).wrapping_sub(val & 0x0fff) & 0x1000 == 0 {
+            if (self.sp & 0x0fff).wrapping_sub(val & 0x0fff) & 0x1000 != 0 {
                 self.f |= H_FLAG_MASK;
             } else {
                 self.f &= !H_FLAG_MASK;
@@ -1864,7 +1864,7 @@ PC: 0x{:04x}",
         } else {
             self.f &= !C_FLAG_MASK;
         }
-        if ((hl & 0x0fff) + (val & 0x0fff)) & 0x1000 == 0 {
+        if ((hl & 0x0fff) + (val & 0x0fff)) & 0x1000 != 0 {
             self.f |= H_FLAG_MASK;
         } else {
             self.f &= !H_FLAG_MASK;
