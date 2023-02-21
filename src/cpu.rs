@@ -2230,7 +2230,7 @@ PC: 0x{:04x}",
     fn call_conditional_nz(&mut self, _: u8) -> CycleCount {
         let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         //24 cycles if condition true, 12 if not
-        if (self.f & Z_FLAG_MASK == 0) || (self.f & N_FLAG_MASK == 0) {
+        if self.f & Z_FLAG_MASK != 0 {
             self.pc += 3;
             return 12;
         }
@@ -2252,7 +2252,7 @@ PC: 0x{:04x}",
     fn call_conditional_nc(&mut self, _: u8) -> CycleCount {
         let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
         //24 cycles if condition true, 12 if not
-        if (self.f & N_FLAG_MASK == 0) || (self.f & C_FLAG_MASK == 0) {
+        if self.f & C_FLAG_MASK != 0 {
             self.pc += 3;
             return 12;
         }
@@ -2295,7 +2295,7 @@ PC: 0x{:04x}",
     // 0xc0 NZ flags (subtract & zero)  cc = 00
     fn ret_conditional_nz(&mut self, _: u8) -> CycleCount {
         // 20 cycles if condition true, 8 if not
-        if (self.f & Z_FLAG_MASK == 0) || (self.f & N_FLAG_MASK == 0) {
+        if self.f & Z_FLAG_MASK != 0 {
             self.pc += 1;
             return 8;
         }
@@ -2315,7 +2315,7 @@ PC: 0x{:04x}",
     // 0xd0 NC flags (subtract & carry) cc = 10
     fn ret_conditional_nc(&mut self, _: u8) -> CycleCount {
         // 20 cycles if condition true, 8 if not
-        if (self.f & N_FLAG_MASK == 0) || (self.f & C_FLAG_MASK == 0) {
+        if self.f & C_FLAG_MASK != 0 {
             self.pc += 1;
             return 8;
         }
