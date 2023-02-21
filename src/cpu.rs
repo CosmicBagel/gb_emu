@@ -843,9 +843,14 @@ PC: 0x{:04x}",
 
         if condition {
             let offset = self.mem[self.pc + 1] as i8;
-            // 2 is added at the end as the relative jump is supposed to
-            // be effected by reading the two bytes for the instruction
-            self.pc = (self.pc as i16 + offset as i16) as usize + 2;
+            let mut target = self.pc as u16;
+            if offset >= 0 {
+                target = target.wrapping_add(offset as u16);
+            } else {
+                target = target.wrapping_sub((offset * -1) as u16);
+            }
+            target += 2;
+            self.pc = target as usize;
             12
         } else {
             self.pc += 2;
