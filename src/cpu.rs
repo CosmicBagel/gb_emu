@@ -2369,8 +2369,8 @@ PC: 0x{:04x}",
             3 => (high_value, low_value) = (self.a, self.f),
             _ => panic!("invalid qq code"),
         }
-        self.mem[self.sp - 1] = low_value;
-        self.mem[self.sp - 2] = high_value;
+        self.mem[self.sp - 1] = high_value;
+        self.mem[self.sp - 2] = low_value;
         
         self.sp -= 2;
         self.pc += 1;
