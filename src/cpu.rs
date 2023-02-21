@@ -1761,7 +1761,7 @@ PC: 0x{:04x}",
             result = r;
             overflow = o;
             //16bit half carry triggered by carry between 11th and 12th bit
-            if ((sp & 0x0fff) + (value & 0x0fff)) & 0x1000 == 0 {
+            if ((sp & 0x0fff) + (value & 0x0fff)) & 0x1000 != 0 {
                 self.f |= H_FLAG_MASK;
             } else {
                 self.f &= !H_FLAG_MASK;
@@ -1811,7 +1811,7 @@ PC: 0x{:04x}",
         if val >= 0 {
             let val = val as usize;
             (result, overflow) = self.sp.overflowing_add(val);
-            if ((self.sp & 0x0fff) + (val & 0x0fff)) & 0x1000 == 0 {
+            if ((self.sp & 0x0fff) + (val & 0x0fff)) & 0x1000 != 0 {
                 self.f |= H_FLAG_MASK;
             } else {
                 self.f &= !H_FLAG_MASK;
