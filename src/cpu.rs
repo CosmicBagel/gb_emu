@@ -237,7 +237,7 @@ impl Cpu {
             write!(self.dr_log, "SP:{:04X} PC:{:04X} ", self.sp, self.pc).unwrap();
             if self.pc > 0xffff {
                 panic!(
-                    "Program counter exceeding address space!!! {}",
+                    "Program counter exceeding address space!!!\n{}",
                     self.dump_registers()
                 );
             }
