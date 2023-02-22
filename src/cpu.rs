@@ -705,9 +705,11 @@ PC: 0x{:04x}",
 
     fn build_cb_bytecode_table() -> BytecodeTable {
         // initialize table with all opcodes as not_implemented
-        let mut table: BytecodeTable = [Cpu::not_implemented; 256];
+        let mut table: BytecodeTable = [Cpu::cb_not_implemented; 256];
 
-        table[0x00] = Cpu::not_implemented;
+        for i in 0..8usize {
+            table[0x00 + i] = Cpu::cb_rlc;
+        }
 
         table
     }
@@ -715,6 +717,14 @@ PC: 0x{:04x}",
     fn not_implemented(&mut self, opcode: u8) -> CycleCount {
         panic!(
             "cpu function not implemented\nopcode 0x{:02x}\n{}",
+            opcode,
+            self.dump_registers()
+        );
+    }
+
+    fn cb_not_implemented(&mut self, opcode: u8) -> CycleCount {
+        panic!(
+            "CB cpu function not implemented\nopcode 0x{:02x}\n{}",
             opcode,
             self.dump_registers()
         );
@@ -731,8 +741,9 @@ PC: 0x{:04x}",
     }
 
     //0xcb
-    fn prefix(&mut self, opcode: u8) -> CycleCount {
-        let inner_cycle_count = self.cb_bytecode_table[opcode as usize](self, opcode);
+    fn prefix(&mut self, _: u8) -> CycleCount {
+        let inner_opcode = self.mem[self.pc + 1];
+        let inner_cycle_count = self.cb_bytecode_table[inner_opcode as usize](self, inner_opcode);
         4 + inner_cycle_count
     }
 
@@ -2407,4 +2418,36 @@ PC: 0x{:04x}",
         self.pc += 1;
         4
     }
+
+    //0x00-07
+    fn cb_rlc(&mut self, opcode: u8) -> CycleCount {
+        //Rotates a to the left with bit 7 being moved to bit 0 and also stored into the carry
+        //0b0000_0rrr
+        //flags Z 0 0 C
+        let reg = opcode & 0b0000_0111;
+        let val = self.read_reg(reg);
+
+        //store highest bit into carry
+        self.f = (self.f & !C_FLAG_MASK) | ((val & 0x80) >> 3);
+
+        // update zero flag
+        if val == 0 {
+            self.f |= Z_FLAG_MASK;
+        } else {
+            self.f &= !Z_FLAG_MASK;
+        }
+
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.write_reg(reg, val.rotate_left(1));
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
+
 }
