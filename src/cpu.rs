@@ -710,6 +710,8 @@ PC: 0x{:04x}",
         for i in 0..8usize {
             table[0x00 + i] = Cpu::cb_rlc;
             table[0x08 + i] = Cpu::cb_rrc;
+            table[0x10 + i] = Cpu::cb_rl;
+            table[0x10 + i] = Cpu::cb_rr;
         }
 
         table
@@ -2473,6 +2475,74 @@ PC: 0x{:04x}",
         self.f &= !N_FLAG_MASK;
 
         self.write_reg(reg, val.rotate_right(1));
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
+
+    //0x10-17
+    fn cb_rl(&mut self, opcode: u8) -> CycleCount {
+        // Rotates a register to the left with the carry's value put into bit 0 and bit 7 is put into the carry.
+        //0b0000_0rrr
+        //flags Z 0 0 C
+        let reg = opcode & 0b0000_0111;
+        let mut val = self.read_reg(reg);
+        let high_bit = val >> 7;
+        let carry_bit = (self.f & C_FLAG_MASK) >> 3;
+
+        //the current carry bit is placed as the lowest bit in a
+        val <<= 1;
+        val |= carry_bit;
+
+        //store highest bit into carry
+        self.f = (self.f & !C_FLAG_MASK) | (high_bit << 4);
+        if val == 0 {
+            self.f |= Z_FLAG_MASK;
+        } else {
+            self.f &= !Z_FLAG_MASK;
+        }
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.write_reg(reg, val);
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
+
+    //0x18-1f
+    fn cb_rr(&mut self, opcode: u8) -> CycleCount {
+        //Rotates a to the right with the carry put into bit 7 and bit 0 put into the carry flag.
+        //0b0000_0rrr
+        //flags Z 0 0 C
+        let reg = opcode & 0b0000_0111;
+        let mut val = self.read_reg(reg);
+        let low_bit = self.a & 0x01;
+        let carry_bit = (self.f & C_FLAG_MASK) >> 3;
+
+        //the current carry bit is placed as the highest bit in a
+        val >>= 1;
+        val |= carry_bit << 7;
+
+        //store highest bit into carry
+        self.f = (self.f & !C_FLAG_MASK) | (low_bit << 4);
+        if val == 0 {
+            self.f |= Z_FLAG_MASK;
+        } else {
+            self.f &= !Z_FLAG_MASK;
+        }
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.write_reg(reg, val);
 
         self.pc += 2;
         if reg == 0x06 {
