@@ -718,6 +718,10 @@ PC: 0x{:04x}",
             table[0x38 + i] = Cpu::cb_srl;
         }
 
+        for i in 0..64usize {
+            table[0x40 + i] = Cpu::cb_bit;
+        }
+
         table
     }
 
@@ -2676,6 +2680,35 @@ PC: 0x{:04x}",
         self.pc += 2;
         if reg == 0x06 {
             16
+        } else {
+            8
+        }
+    }
+
+    //0xcb 0x40-7f
+    fn cb_bit(&mut self, opcode: u8) -> CycleCount {
+        //0b01_bbb_rrr
+        //flags Z 0 1 -
+        let reg = opcode & 0b0000_0111;
+        let bit = (opcode & 0b00_111_000) >> 3;
+        let val = self.read_reg(reg);
+
+        let bit_mask = 1 << bit;
+        let bit_val = (val & bit_mask) >> bit;
+
+        // set Z flag to opposite of bit value
+        if bit_val == 0 {
+            self.f |= Z_FLAG_MASK;
+        } else {
+            self.f &= !Z_FLAG_MASK;
+        }
+
+        self.f |= H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+        
+        self.pc += 2;
+        if reg == 0x06 {
+            12
         } else {
             8
         }
