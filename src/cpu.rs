@@ -711,7 +711,7 @@ PC: 0x{:04x}",
             table[0x00 + i] = Cpu::cb_rlc;
             table[0x08 + i] = Cpu::cb_rrc;
             table[0x10 + i] = Cpu::cb_rl;
-            table[0x10 + i] = Cpu::cb_rr;
+            table[0x18 + i] = Cpu::cb_rr;
         }
 
         table
