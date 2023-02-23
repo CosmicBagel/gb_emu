@@ -712,6 +712,10 @@ PC: 0x{:04x}",
             table[0x08 + i] = Cpu::cb_rrc;
             table[0x10 + i] = Cpu::cb_rl;
             table[0x18 + i] = Cpu::cb_rr;
+            table[0x20 + i] = Cpu::cb_sla;
+            table[0x28 + i] = Cpu::cb_sra;
+            table[0x30 + i] = Cpu::cb_swap;
+            table[0x38 + i] = Cpu::cb_srl;
         }
 
         table
@@ -2543,6 +2547,131 @@ PC: 0x{:04x}",
         self.f &= !N_FLAG_MASK;
 
         self.write_reg(reg, val);
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
+
+    //0xcb 0x20-27
+    fn cb_sla(&mut self, opcode: u8) -> CycleCount {
+        //0b0010_0rrr
+        //flags Z 0 0 C
+        let reg = opcode & 0b0000_0111;
+        let mut val = self.read_reg(reg);
+
+        //store high bit in carry flag
+        self.f = (self.f & !C_FLAG_MASK) | ((val & 0x80) >> 3);
+        val <<= 1;
+        self.write_reg(reg, val);
+
+        if val == 0 {
+            self.f |= Z_FLAG_MASK;
+        } else {
+            self.f &= !Z_FLAG_MASK;
+        }
+
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
+
+    //0xcb 0x28-2f
+    fn cb_sra(&mut self, opcode: u8) -> CycleCount {
+        //0b0010_1rrr
+        //flags Z 0 0 C
+        let reg = opcode & 0b0000_0111;
+        let mut val = self.read_reg(reg);
+        let low_bit = 1 & val;
+        let high_bit = 0b1000_0000 & val;
+
+        //store low bit in carry flag
+        self.f = (self.f & !C_FLAG_MASK) | (low_bit << 4);
+
+        //shift
+        val >>= 1;
+
+        //restore high bit (arithmetic preservation)
+        val |= high_bit;
+
+        if val == 0 {
+            self.f |= Z_FLAG_MASK;
+        } else {
+            self.f &= !Z_FLAG_MASK;
+        }
+
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
+
+    //0xcb 0x38-3f
+    fn cb_srl(&mut self, opcode: u8) -> CycleCount {
+        //0b0011_1rrr
+        //flags Z 0 0 C
+        let reg = opcode & 0b0000_0111;
+        let mut val = self.read_reg(reg);
+        let low_bit = 1 & val;
+
+        //store low bit in carry flag
+        self.f = (self.f & !C_FLAG_MASK) | (low_bit << 4);
+
+        //shift (no arithmetic preservation)
+        val >>= 1;
+
+        if val == 0 {
+            self.f |= Z_FLAG_MASK;
+        } else {
+            self.f &= !Z_FLAG_MASK;
+        }
+
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
+
+    //0xcb 0x30-37
+    fn cb_swap(&mut self, opcode: u8) -> CycleCount {
+        //0b0011_0rrr
+        //flags Z 0 0 C
+        let reg = opcode & 0b0000_0111;
+        let mut val = self.read_reg(reg);
+
+        //swap
+        let lower_bits = val & 0x0f;
+        val >>= 4;
+        val |= lower_bits << 4;
+        
+        if val == 0 {
+            self.f |= Z_FLAG_MASK;
+        } else {
+            self.f &= !Z_FLAG_MASK;
+        }
+
+        self.f &= !H_FLAG_MASK;
+        self.f &= !N_FLAG_MASK;
+        self.f &= !C_FLAG_MASK;
 
         self.pc += 2;
         if reg == 0x06 {
