@@ -720,6 +720,8 @@ PC: 0x{:04x}",
 
         for i in 0..64usize {
             table[0x40 + i] = Cpu::cb_bit;
+            table[0x80 + i] = Cpu::cb_res;
+            table[0xc0 + i] = Cpu::cb_set;
         }
 
         table
@@ -2714,4 +2716,43 @@ PC: 0x{:04x}",
         }
     }
 
+    //0xcb 0x80-bf
+    fn cb_res(&mut self, opcode: u8) -> CycleCount {
+        //0b10_bbb_rrr
+        //flags - - - -
+        let reg = opcode & 0b0000_0111;
+        let bit = (opcode & 0b00_111_000) >> 3;
+        let mut val = self.read_reg(reg);
+
+        let bit_mask = 1 << bit;
+        val &= !bit_mask;
+        self.write_reg(reg, val);
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
+
+    //0xcb 0xc0-ff
+    fn cb_set(&mut self, opcode: u8) -> CycleCount {
+        //0b11_bbb_rrr
+        //flags - - - -
+        let reg = opcode & 0b0000_0111;
+        let bit = (opcode & 0b00_111_000) >> 3;
+        let mut val = self.read_reg(reg);
+
+        let bit_mask = 1 << bit;
+        val |= bit_mask;
+        self.write_reg(reg, val);
+
+        self.pc += 2;
+        if reg == 0x06 {
+            16
+        } else {
+            8
+        }
+    }
 }
