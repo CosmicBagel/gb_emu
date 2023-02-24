@@ -1,5 +1,5 @@
 use spin_sleep;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::{
     fs::{read, File},
     thread, time,
@@ -85,13 +85,14 @@ pub struct Cpu {
     // disable_interrupt will set this to 0, to stop ime from being enabled
     ei_delay: u8,
 
-    dr_log: File,
+    dr_log_buf_writer: BufWriter<File>,
 }
 
 impl Cpu {
     pub fn new() -> Cpu {
         let dr_log_path = "dr_log.txt";
         let log_output = File::create(dr_log_path).unwrap();
+        let buf_writer = BufWriter::new(log_output);
 
         Cpu {
             a: 0x00,
@@ -113,7 +114,7 @@ impl Cpu {
 
             interrupt_master_enable: true,
 
-            dr_log: log_output,
+            dr_log_buf_writer: buf_writer,
         }
     }
 
@@ -176,11 +177,13 @@ impl Cpu {
         let cycles_per_sleep = 20_000u32;
         let mut cycle_count_since_last_sleep = 0u32;
 
-        write!(
-            self.dr_log, "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n", 
+        self.dr_log_buf_writer.
+            write_fmt(format_args!(
+                "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n", 
             self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc,
             self.mem[self.pc], self.mem[self.pc + 1], self.mem[self.pc + 2], self.mem[self.pc + 3]
-            ).unwrap();
+            ))
+            .unwrap();
 
         // there are about 245 unique opcodes
         // 112 implemented so far
@@ -227,28 +230,30 @@ impl Cpu {
                 }
             }
 
-            write!(
-                self.dr_log,
+            self.dr_log_buf_writer
+                .write_fmt(format_args!(
                 "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
                 self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
-            )
+                ))
             .unwrap();
 
-            write!(self.dr_log, "SP:{:04X} PC:{:04X} ", self.sp, self.pc).unwrap();
+            self.dr_log_buf_writer
+                .write_fmt(format_args!("SP:{:04X} PC:{:04X} ", self.sp, self.pc))
+                .unwrap();
             if self.pc > 0xffff {
                 panic!(
                     "Program counter exceeding address space!!!\n{}",
                     self.dump_registers()
                 );
             }
-            write!(
-                self.dr_log,
+            self.dr_log_buf_writer
+                .write_fmt(format_args!(
                 "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
                 self.mem[self.pc],
                 self.mem[self.pc + 1],
                 self.mem[self.pc + 2],
                 self.mem[self.pc + 3]
-            )
+                ))
             .unwrap();
 
             count += 1;
