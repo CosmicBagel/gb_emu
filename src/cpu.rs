@@ -1785,39 +1785,42 @@ PC: 0x{:04x}",
 
     //0xf8
     fn load_16bit_hl_sp_offset(&mut self, _: u8) -> CycleCount {
-        let value = (self.mem[self.pc] as i8) as i16;
+        //LD HL, SP+e: H from bit 3, C from bit 7 (flags from low byte op)
         let mut sp = self.sp as u16;
-        let overflow;
         let result;
-        if value >= 0 {
-            let value = value as u16;
-            let (r, o) = sp.overflowing_add(value);
-            result = r;
-            overflow = o;
-            //16bit half carry triggered by carry between 11th and 12th bit
-            if ((sp & 0x0fff) + (value & 0x0fff)) & 0x1000 != 0 {
+        if val >= 0 {
+            let val = val as u16;
+            result = sp.wrapping_add(val);
+            //because we're adding an 8bit number, half carry occurs at bit 4, not 11
+            let carry_bits = sp ^ val ^ result;
+            if carry_bits & 0x0010 != 0 {
                 self.f |= H_FLAG_MASK;
             } else {
                 self.f &= !H_FLAG_MASK;
+            }
+            if carry_bits & 0x0100 != 0 {
+                self.f |= C_FLAG_MASK;
+        } else {
+                self.f &= !C_FLAG_MASK;
             }
         } else {
-            let value = (value * -1) as u16;
-            let (r, o) = sp.overflowing_sub(value);
-            result = r;
-            overflow = o;
-            if (sp & 0x0fff).wrapping_sub(value & 0x0fff) & 0x1000 != 0 {
+            let val_unsigned = (val * -1) as u16;
+            let literal_cast = val as u16;
+            result = sp.wrapping_sub(val_unsigned);
+            let carry_bits = sp ^ literal_cast ^ result;
+            if carry_bits & 0x0010 != 0 {
                 self.f |= H_FLAG_MASK;
             } else {
                 self.f &= !H_FLAG_MASK;
             }
-        }
-
-        sp = result;
-        if overflow {
+            if carry_bits & 0x0100 != 0 {
             self.f |= C_FLAG_MASK;
         } else {
             self.f &= !C_FLAG_MASK;
         }
+        }
+
+        sp = result;
 
         self.f &= !Z_FLAG_MASK;
         self.f &= !N_FLAG_MASK;
@@ -1837,36 +1840,45 @@ PC: 0x{:04x}",
 
     //0xe8
     fn add_16bit_sp_r8_immediate(&mut self, _: u8) -> CycleCount {
+        //ADD SP, e: H from bit 3, C from bit 7 (flags from low byte op)
         //flags 00hc
         //SP = SP +/- dd ; dd is 8-bit signed number
         let val = (self.mem[self.pc + 1] as i8) as i16;
+        let sp = self.sp as u16;
         let result;
-        let overflow;
         if val >= 0 {
-            let val = val as usize;
-            (result, overflow) = self.sp.overflowing_add(val);
-            if ((self.sp & 0x0fff) + (val & 0x0fff)) & 0x1000 != 0 {
+            let val = val as u16;
+            result = sp.wrapping_add(val);
+            //because we're adding an 8bit number, half carry occurs at bit 4, not 11
+            let carry_bits = sp ^ val ^ result;
+            if carry_bits & 0x0010 != 0 {
                 self.f |= H_FLAG_MASK;
             } else {
                 self.f &= !H_FLAG_MASK;
+            }
+            if carry_bits & 0x0100 != 0 {
+                self.f |= C_FLAG_MASK;
+        } else {
+                self.f &= !C_FLAG_MASK;
             }
         } else {
-            let val = (val * -1) as usize;
-            (result, overflow) = self.sp.overflowing_sub(val);
-            if (self.sp & 0x0fff).wrapping_sub(val & 0x0fff) & 0x1000 != 0 {
+            let val_unsigned = (val * -1) as u16;
+            let literal_cast = val as u16;
+            result = sp.wrapping_sub(val_unsigned);
+            let carry_bits = sp ^ literal_cast ^ result;
+            if carry_bits & 0x0010 != 0 {
                 self.f |= H_FLAG_MASK;
             } else {
                 self.f &= !H_FLAG_MASK;
             }
-        }
-
-        self.sp = result;
-
-        if overflow {
+            if carry_bits & 0x0100 != 0 {
             self.f |= C_FLAG_MASK;
         } else {
             self.f &= !C_FLAG_MASK;
+            }
         }
+
+        self.sp = result as usize;
 
         self.f &= !Z_FLAG_MASK;
         self.f &= !N_FLAG_MASK;
