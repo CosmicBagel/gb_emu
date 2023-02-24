@@ -1786,6 +1786,7 @@ PC: 0x{:04x}",
     //0xf8
     fn load_16bit_hl_sp_offset(&mut self, _: u8) -> CycleCount {
         //LD HL, SP+e: H from bit 3, C from bit 7 (flags from low byte op)
+        let val = (self.mem[self.pc + 1] as i8) as i16;
         let mut sp = self.sp as u16;
         let result;
         if val >= 0 {
