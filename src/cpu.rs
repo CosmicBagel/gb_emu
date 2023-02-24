@@ -2627,6 +2627,8 @@ PC: 0x{:04x}",
         //restore high bit (arithmetic preservation)
         val |= high_bit;
 
+        self.write_reg(reg, val);
+
         if val == 0 {
             self.f |= Z_FLAG_MASK;
         } else {
@@ -2658,6 +2660,8 @@ PC: 0x{:04x}",
         //shift (no arithmetic preservation)
         val >>= 1;
 
+        self.write_reg(reg, val);
+
         if val == 0 {
             self.f |= Z_FLAG_MASK;
         } else {
@@ -2687,6 +2691,8 @@ PC: 0x{:04x}",
         val >>= 4;
         val |= lower_bits << 4;
         
+        self.write_reg(reg, val);
+
         if val == 0 {
             self.f |= Z_FLAG_MASK;
         } else {
