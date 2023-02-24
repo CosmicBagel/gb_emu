@@ -2397,7 +2397,7 @@ PC: 0x{:04x}",
         let qq_code = (opcode & 0b00_11_0000) >> 4;
         let stack_high = self.mem[self.sp + 1];
         let stack_low = self.mem[self.sp];
-        //BC 00, DD 01, HL 10, SP 11
+        //BC 00, DE 01, HL 10, AF 11
         match qq_code {
             0 => (self.b, self.c) = (stack_high, stack_low),
             1 => (self.d, self.e) = (stack_high, stack_low),
@@ -2417,7 +2417,7 @@ PC: 0x{:04x}",
         //0b11_xx_0101
         let qq_code = (opcode & 0b00_11_0000) >> 4;
         let (high_value, low_value);
-        //BC 00, DD 01, HL 10, SP 11
+        //BC 00, DE 01, HL 10, AF 11
         match qq_code {
             0 => (high_value, low_value) = (self.b, self.c),
             1 => (high_value, low_value) = (self.d, self.e),
