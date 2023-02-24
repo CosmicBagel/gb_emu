@@ -1675,7 +1675,7 @@ PC: 0x{:04x}",
         // used https://forums.nesdev.org/viewtopic.php?t=15944
         // the gameboy cpu has specific quirks that makes this tricky to figure out
         // if you're relying on z80 documentation
-        let n_flag = (self.f & N_FLAG_MASK) >> 7;
+        let n_flag = (self.f & N_FLAG_MASK) >> 6;
         let h_flag = (self.f & H_FLAG_MASK) >> 5;
         let c_flag = (self.f & C_FLAG_MASK) >> 4;
 
