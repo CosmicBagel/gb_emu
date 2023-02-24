@@ -2553,7 +2553,7 @@ PC: 0x{:04x}",
         //flags Z 0 0 C
         let reg = opcode & 0b0000_0111;
         let mut val = self.read_reg(reg);
-        let low_bit = self.a & 0x01;
+        let low_bit = val & 0x01;
         let carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         //the current carry bit is placed as the highest bit in a
