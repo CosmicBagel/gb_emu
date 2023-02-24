@@ -1429,7 +1429,7 @@ PC: 0x{:04x}",
         //0b10001_xxx
         let from_reg = opcode & 0b00_000_111;
         let val = self.read_reg(from_reg);
-        let last_carry_bit = self.f & C_FLAG_MASK >> 4;
+        let last_carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         let (result_a, overflow_a) = self.a.overflowing_add(val);
         let (result_b, overflow_b) = result_a.overflowing_add(last_carry_bit);
@@ -1474,7 +1474,7 @@ PC: 0x{:04x}",
     //0xce
     fn adc_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
         let val = self.mem[self.pc + 1];
-        let last_carry_bit = self.f & C_FLAG_MASK >> 4;
+        let last_carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         let (result_a, overflow_a) = self.a.overflowing_add(val);
         let (result_b, overflow_b) = result_a.overflowing_add(last_carry_bit);
@@ -1564,7 +1564,7 @@ PC: 0x{:04x}",
     //0xde
     fn sbc_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
         let val = self.mem[self.pc + 1];
-        let last_carry_bit = self.f & C_FLAG_MASK >> 4;
+        let last_carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         let (result_a, overflow_a) = self.a.overflowing_sub(val);
         let (result_b, overflow_b) = result_a.overflowing_sub(last_carry_bit);
@@ -2197,7 +2197,7 @@ PC: 0x{:04x}",
     fn rla_8bit(&mut self, _: u8) -> CycleCount {
         // Rotates a register to the left with the carry's value put into bit 0 and bit 7 is put into the carry.
         let high_bit = self.a >> 7;
-        let carry_bit = (self.f & C_FLAG_MASK) >> 3;
+        let carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         //the current carry bit is placed as the lowest bit in a
         self.a <<= 1;
@@ -2218,7 +2218,7 @@ PC: 0x{:04x}",
     fn rra_8bit(&mut self, _: u8) -> CycleCount {
         //Rotates a to the right with the carry put into bit 7 and bit 0 put into the carry flag.
         let low_bit = self.a & 0x01;
-        let carry_bit = (self.f & C_FLAG_MASK) >> 3;
+        let carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         //the current carry bit is placed as the highest bit in a
         self.a >>= 1;
@@ -2507,7 +2507,7 @@ PC: 0x{:04x}",
         let reg = opcode & 0b0000_0111;
         let mut val = self.read_reg(reg);
         let high_bit = val >> 7;
-        let carry_bit = (self.f & C_FLAG_MASK) >> 3;
+        let carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         //the current carry bit is placed as the lowest bit in a
         val <<= 1;
@@ -2541,7 +2541,7 @@ PC: 0x{:04x}",
         let reg = opcode & 0b0000_0111;
         let mut val = self.read_reg(reg);
         let low_bit = self.a & 0x01;
-        let carry_bit = (self.f & C_FLAG_MASK) >> 3;
+        let carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         //the current carry bit is placed as the highest bit in a
         val >>= 1;
