@@ -86,6 +86,7 @@ pub struct Cpu {
     ei_delay: u8,
 
     dr_log_buf_writer: BufWriter<File>,
+    instruction_count: u32,
 }
 
 impl Cpu {
@@ -115,6 +116,7 @@ impl Cpu {
             interrupt_master_enable: true,
 
             dr_log_buf_writer: buf_writer,
+            instruction_count: 0,
         }
     }
 
@@ -189,7 +191,6 @@ impl Cpu {
         // 112 implemented so far
         // 0 have tests
         let limit = 2_000_000u32;
-        let mut count = 0u32;
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
             // unless there's a reason to allow it
@@ -256,8 +257,8 @@ impl Cpu {
                 ))
             .unwrap();
 
-            count += 1;
-            if count >= limit {
+            self.instruction_count += 1;
+            if self.instruction_count>= limit {
                 break;
             }
 
