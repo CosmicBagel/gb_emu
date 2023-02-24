@@ -188,7 +188,7 @@ impl Cpu {
         // there are about 245 unique opcodes
         // 112 implemented so far
         // 0 have tests
-        let limit = 100_000u32;
+        let limit = 2_000_000u32;
         let mut count = 0u32;
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
