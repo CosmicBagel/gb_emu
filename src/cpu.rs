@@ -1682,19 +1682,19 @@ PC: 0x{:04x}",
         if n_flag == 0 {
             // after an addition, adjust if (half-)carry occurred or if result is out of bounds
             if c_flag == 1 || self.a > 0x99 {
-                self.a += 0x60;
+                self.a = self.a.wrapping_add(0x60);
                 self.f |= C_FLAG_MASK;
             }
             if h_flag == 1 || (self.a & 0x0f) > 0x09 {
-                self.a += 0x06;
+                self.a = self.a.wrapping_add(0x06);
             }
         } else {
             // after a subtraction, only adjust if (half-)carry occurred
             if c_flag == 1 {
-                self.a -= 0x60;
+                self.a = self.a.wrapping_sub(0x60);
             }
             if h_flag == 1 {
-                self.a -= 0x06;
+                self.a = self.a.wrapping_sub(0x06);
             }
         }
 
