@@ -1950,7 +1950,7 @@ PC: 0x{:04x}",
             0 => self.set_bc(self.get_bc().wrapping_sub(1)),
             1 => self.set_de(self.get_de().wrapping_sub(1)),
             2 => self.set_hl(self.get_hl().wrapping_sub(1)),
-            3 => self.sp = (self.sp as u16).wrapping_add(1) as usize,
+            3 => self.sp = (self.sp as u16).wrapping_sub(1) as usize,
             _ => panic!("invalid reg code"),
         }
 
