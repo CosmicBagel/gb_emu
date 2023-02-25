@@ -1,5 +1,6 @@
 use spin_sleep;
 use std::io::{BufWriter, Write};
+use std::process::exit;
 use std::{
     fs::{read, File},
     thread, time,
@@ -194,6 +195,10 @@ impl Cpu {
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
             // unless there's a reason to allow it
+            if self.pc > 0x7fff {
+                println!("attempted to execute outside of rom space");
+                exit(0);
+            }
 
             //hack for gb dr
             self.mem[0xff44] = 0x90;
