@@ -204,6 +204,9 @@ impl Cpu {
             //execute instruction
             let mut cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
 
+            //clear lower 4 bits of F (these are invalid bits)
+            self.f = self.f & 0xf0;
+
             if self.check_interrupts() {
                 // when true, the ISR (interrupt service handler) consumes 20 cycles
                 cycle_cost += 20;
