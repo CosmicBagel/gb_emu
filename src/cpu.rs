@@ -1521,7 +1521,7 @@ PC: 0x{:04x}",
         //0b10011_xxx
         let from_reg = opcode & 0b00_000_111;
         let val = self.read_reg(from_reg);
-        let last_carry_bit = self.f & C_FLAG_MASK >> 4;
+        let last_carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         let (result_a, overflow_a) = self.a.overflowing_sub(val);
         let (result_b, overflow_b) = result_a.overflowing_sub(last_carry_bit);
