@@ -183,14 +183,11 @@ impl Cpu {
         self.dr_log_buf_writer.
             write_fmt(format_args!(
                 "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n", 
-            self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc,
-            self.mem[self.pc], self.mem[self.pc + 1], self.mem[self.pc + 2], self.mem[self.pc + 3]
+                self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc,
+                self.mem[self.pc], self.mem[self.pc + 1], self.mem[self.pc + 2], self.mem[self.pc + 3]
             ))
             .unwrap();
 
-        // there are about 245 unique opcodes
-        // 112 implemented so far
-        // 0 have tests
         let limit = 2_000_000u32;
         loop {
             // 0x7fff is the highest rom address, we'll halt on this
@@ -204,7 +201,6 @@ impl Cpu {
             self.mem[0xff44] = 0x90;
 
             let opcode = self.mem[self.pc];
-            println!("{:#02x}: {:02x}", self.pc, opcode);
 
             //execute instruction
             let mut cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
@@ -241,10 +237,10 @@ impl Cpu {
 
             self.dr_log_buf_writer
                 .write_fmt(format_args!(
-                "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
-                self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
+                    "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
+                    self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
                 ))
-            .unwrap();
+                .unwrap();
 
             self.dr_log_buf_writer
                 .write_fmt(format_args!("SP:{:04X} PC:{:04X} ", self.sp, self.pc))
@@ -257,13 +253,13 @@ impl Cpu {
             }
             self.dr_log_buf_writer
                 .write_fmt(format_args!(
-                "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
-                self.mem[self.pc],
-                self.mem[self.pc + 1],
-                self.mem[self.pc + 2],
-                self.mem[self.pc + 3]
+                    "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
+                    self.mem[self.pc],
+                    self.mem[self.pc + 1],
+                    self.mem[self.pc + 2],
+                    self.mem[self.pc + 3]
                 ))
-            .unwrap();
+                .unwrap();
 
             self.instruction_count += 1;
             if self.instruction_count>= limit {
@@ -316,7 +312,6 @@ impl Cpu {
 
     fn check_interrupts(&mut self) -> bool {
         if self.interrupt_master_enable {
-            println!("checking interrupts");
 
             let interrupt_enable = self.mem[INTERRUPT_ENABLE_ADDRESS];
             let interrupt_flag = self.mem[INTERRUPT_FLAG_ADDRESS];
@@ -1810,7 +1805,7 @@ PC: 0x{:04x}",
             }
             if carry_bits & 0x0100 != 0 {
                 self.f |= C_FLAG_MASK;
-        } else {
+            } else {
                 self.f &= !C_FLAG_MASK;
             }
         } else {
@@ -1824,10 +1819,10 @@ PC: 0x{:04x}",
                 self.f &= !H_FLAG_MASK;
             }
             if carry_bits & 0x0100 != 0 {
-            self.f |= C_FLAG_MASK;
-        } else {
-            self.f &= !C_FLAG_MASK;
-        }
+                self.f |= C_FLAG_MASK;
+            } else {
+                self.f &= !C_FLAG_MASK;
+            }
         }
 
         sp = result;
@@ -1868,7 +1863,7 @@ PC: 0x{:04x}",
             }
             if carry_bits & 0x0100 != 0 {
                 self.f |= C_FLAG_MASK;
-        } else {
+            } else {
                 self.f &= !C_FLAG_MASK;
             }
         } else {
@@ -1882,9 +1877,9 @@ PC: 0x{:04x}",
                 self.f &= !H_FLAG_MASK;
             }
             if carry_bits & 0x0100 != 0 {
-            self.f |= C_FLAG_MASK;
-        } else {
-            self.f &= !C_FLAG_MASK;
+                self.f |= C_FLAG_MASK;
+            } else {
+                self.f &= !C_FLAG_MASK;
             }
         }
 
@@ -2435,7 +2430,7 @@ PC: 0x{:04x}",
         }
         self.mem[self.sp - 1] = high_value;
         self.mem[self.sp - 2] = low_value;
-        
+
         self.sp -= 2;
         self.pc += 1;
 
@@ -2699,7 +2694,7 @@ PC: 0x{:04x}",
         let lower_bits = val & 0x0f;
         val >>= 4;
         val |= lower_bits << 4;
-        
+
         self.write_reg(reg, val);
 
         if val == 0 {
@@ -2740,7 +2735,7 @@ PC: 0x{:04x}",
 
         self.f |= H_FLAG_MASK;
         self.f &= !N_FLAG_MASK;
-        
+
         self.pc += 2;
         if reg == 0x06 {
             12
