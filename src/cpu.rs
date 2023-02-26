@@ -325,9 +325,7 @@ impl Cpu {
         //CGB mode can run at 32_768 (won't be implementing)
         //Does not increment in STOP mode
         //**writing any value to this register resets it to zero** */
-        //  this requires reworking all of the CPU functions to go through a
-        //  handler func to read/write memory
-        //  all self.mem[xxxx] accesses need to be replaced with mem_read/mem_write funcs
+        //this is handled in the write_mem function
 
         ///////0xff05 - TIMA - timer counter
         //incremented at rate specified by TAC
@@ -337,23 +335,6 @@ impl Cpu {
         ////////0xff06 - TMA - timer modulo
         //reset point used by TIMA when TIMA overflows
         //when TIMA overflows interrupt is requested
-
-        // don't use this timestamp diff, instead use the cycle count, to determine how much
-        // emulated cpu time has passed
-        // move spin waiting and cpu yielding to main
-        // loop in main, cpu has a run_step call that returns how many emulation cycles
-        //  occurred
-        // main loop uses this count in spin wait
-        //
-
-        //todo:
-        // - replace self.mem r/w with functions
-        // - replace register r/w with functions? (at least f reg)
-        //      this replaces the hack in run that zeros the bottom bits of f reg
-        // - writing any val to div hw reg zeros it
-        // - impl timer incrementing and div incrementing based on timestamp diff
-        // - impl interrupt request from TIMA overflow
-        // - halt and stop modes?
 
         self.div_cycle_counter += cycle_delta;
         let div_increment = self.div_cycle_counter / 256;
