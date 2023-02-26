@@ -1,3 +1,4 @@
+use std::{env, process::exit};
 use cpu::Cpu;
 
 mod cpu;
@@ -33,8 +34,13 @@ fn main() {
     - some things might not work if expecting state left over from boot process
 
      */
+    let args: Vec<_> = env::args().collect();
+    if args.len() < 2 {
+        println!("Must specify rom file");
+        exit(1);
+    }
 
-    let filename = "01-special.gb";
+    let filename = args[1].as_str();
     let mut cpu = Cpu::new();
     cpu.load_rom(filename);
     cpu.run();
