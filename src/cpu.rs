@@ -455,6 +455,24 @@ impl Cpu {
         //needs to wait 20 cycles
     }
 
+    //used by cpu instructions, other emulator code just accesses directly
+    fn read_mem(&self, address: usize) -> u8 {
+        // match address {
+        //     0x4424 => println!("reading {:2x} from {:4x}", self.mem[address], address),
+        //     _ => {},
+        // };
+        self.mem[address]
+    }
+
+    //used by cpu instructions, other emulator code just accesses directly
+    fn write_mem(&mut self, address: usize, value: u8) {
+        match address {
+            // 0x4424 => println!("writing {:2x} to {:4x}", value, address),
+            DIV_ADDRESS => self.mem[DIV_ADDRESS] = 0x00,
+            _ => self.mem[address] = value,
+        }
+    }
+
     fn get_bc(&self) -> u16 {
         (self.b as u16) << 8 | self.c as u16
     }
@@ -492,7 +510,7 @@ impl Cpu {
             3 => self.e,
             4 => self.h,
             5 => self.l,
-            6 => self.mem[hl],
+            6 => self.read_mem(hl),
             7 => self.a,
             _ => panic!("invalid from_reg value in load operation"),
         }
@@ -507,7 +525,7 @@ impl Cpu {
             3 => self.e = value,
             4 => self.h = value,
             5 => self.l = value,
-            6 => self.mem[hl] = value,
+            6 => self.write_mem(hl, value),
             7 => self.a = value,
             _ => panic!("invalid to_reg value in load operation"),
         };
@@ -847,14 +865,14 @@ PC: 0x{:04x}",
 
     //0xcb
     fn prefix(&mut self, _: u8) -> CycleCount {
-        let inner_opcode = self.mem[self.pc + 1];
+        let inner_opcode = self.read_mem(self.pc + 1);
         let inner_cycle_count = self.cb_bytecode_table[inner_opcode as usize](self, inner_opcode);
         4 + inner_cycle_count
     }
 
     //0xc3
     fn jump(&mut self, _: u8) -> CycleCount {
-        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+        let target = ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
         self.pc = target as usize;
         16
     }
@@ -898,7 +916,8 @@ PC: 0x{:04x}",
         }
 
         if condition {
-            let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+            let target =
+                ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
             self.pc = target as usize;
             16
         } else {
@@ -909,7 +928,7 @@ PC: 0x{:04x}",
 
     //0x18
     fn jr(&mut self, _: u8) -> CycleCount {
-        let offset = self.mem[self.pc + 1] as i8;
+        let offset = self.read_mem(self.pc + 1) as i8;
         // 2 is added at the end as the relative jump is supposed to
         // be effected by reading the two bytes for the instruction
         let mut target;
@@ -958,7 +977,7 @@ PC: 0x{:04x}",
         }
 
         if condition {
-            let offset = self.mem[self.pc + 1] as i8;
+            let offset = self.read_mem(self.pc + 1) as i8;
             let mut target = self.pc as u16;
             if offset >= 0 {
                 target = target.wrapping_add(offset as u16);
@@ -1106,7 +1125,7 @@ PC: 0x{:04x}",
 
     //0xae
     fn xor_8bit_a_hl_indirect(&mut self, _: u8) -> CycleCount {
-        self.a = self.a ^ self.mem[self.get_hl() as usize];
+        self.a = self.a ^ self.read_mem(self.get_hl() as usize);
 
         if self.a == 0 {
             self.f |= Z_FLAG_MASK; // flip on
@@ -1137,7 +1156,7 @@ PC: 0x{:04x}",
 
     //0xee
     fn xor_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
-        let val = self.mem[self.pc + 1];
+        let val = self.read_mem(self.pc + 1);
         self.a = self.a ^ val;
 
         if self.a == 0 {
@@ -1201,7 +1220,7 @@ PC: 0x{:04x}",
 
     // 0xc6
     fn add_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
-        let val = self.mem[self.pc + 1];
+        let val = self.read_mem(self.pc + 1);
         let (result, overflow_occurred) = self.a.overflowing_add(val);
 
         //update flags
@@ -1286,7 +1305,7 @@ PC: 0x{:04x}",
 
     //0xd6
     fn sub_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
-        let val = self.mem[self.pc + 1];
+        let val = self.read_mem(self.pc + 1);
         let (result, overflow_occurred) = self.a.overflowing_sub(val);
 
         //update flags
@@ -1355,7 +1374,7 @@ PC: 0x{:04x}",
 
     //0xe6
     fn and_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
-        let val = self.mem[self.pc + 1];
+        let val = self.read_mem(self.pc + 1);
         let result = self.a & val;
 
         self.f &= !N_FLAG_MASK;
@@ -1407,7 +1426,7 @@ PC: 0x{:04x}",
     }
 
     fn or_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
-        let val = self.mem[self.pc + 1];
+        let val = self.read_mem(self.pc + 1);
         let result = self.a | val;
 
         self.f &= !N_FLAG_MASK;
@@ -1476,7 +1495,7 @@ PC: 0x{:04x}",
     //0xfe
     fn cp_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
         // basically the same, except we don't store the result
-        let val = self.mem[self.pc + 1];
+        let val = self.read_mem(self.pc + 1);
         let (result, overflow_occurred) = self.a.overflowing_sub(val);
 
         //update flags
@@ -1560,7 +1579,7 @@ PC: 0x{:04x}",
 
     //0xce
     fn adc_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
-        let val = self.mem[self.pc + 1];
+        let val = self.read_mem(self.pc + 1);
         let last_carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         let (result_a, overflow_a) = self.a.overflowing_add(val);
@@ -1650,7 +1669,7 @@ PC: 0x{:04x}",
 
     //0xde
     fn sbc_8bit_a_immediate(&mut self, _: u8) -> CycleCount {
-        let val = self.mem[self.pc + 1];
+        let val = self.read_mem(self.pc + 1);
         let last_carry_bit = (self.f & C_FLAG_MASK) >> 4;
 
         let (result_a, overflow_a) = self.a.overflowing_sub(val);
@@ -1828,7 +1847,7 @@ PC: 0x{:04x}",
     // note: this 16bit loads are little endian
     //0x01
     fn load_16bit_bc_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        let value = (self.read_mem(self.pc + 2) as u16) << 8 | self.read_mem(self.pc + 1) as u16;
         self.set_bc(value);
         self.pc += 3;
         12
@@ -1836,7 +1855,7 @@ PC: 0x{:04x}",
 
     //0x11
     fn load_16bit_de_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        let value = (self.read_mem(self.pc + 2) as u16) << 8 | self.read_mem(self.pc + 1) as u16;
         self.set_de(value);
         self.pc += 3;
         12
@@ -1844,7 +1863,7 @@ PC: 0x{:04x}",
 
     //0x21
     fn load_16bit_hl_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        let value = (self.read_mem(self.pc + 2) as u16) << 8 | self.read_mem(self.pc + 1) as u16;
         self.set_hl(value);
         self.pc += 3;
         12
@@ -1852,7 +1871,7 @@ PC: 0x{:04x}",
 
     //0x31
     fn load_16bit_sp_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        let value = (self.read_mem(self.pc + 2) as u16) << 8 | self.read_mem(self.pc + 1) as u16;
         self.sp = value as usize;
         self.pc += 3;
         12
@@ -1860,11 +1879,11 @@ PC: 0x{:04x}",
 
     //0x08
     fn load_16bit_sp_indirect_value(&mut self, _: u8) -> CycleCount {
-        let target = (self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16;
+        let target = (self.read_mem(self.pc + 2) as u16) << 8 | self.read_mem(self.pc + 1) as u16;
         // set lower byte
-        self.mem[target as usize] = (self.sp & 0x00ff) as u8;
+        self.write_mem(target as usize, (self.sp & 0x00ff) as u8);
         // set higher byte
-        self.mem[(target + 1) as usize] = (self.sp >> 8) as u8;
+        self.write_mem((target + 1) as usize, (self.sp >> 8) as u8);
 
         self.pc += 3;
         20
@@ -1873,7 +1892,7 @@ PC: 0x{:04x}",
     //0xf8
     fn load_16bit_hl_sp_offset(&mut self, _: u8) -> CycleCount {
         //LD HL, SP+e: H from bit 3, C from bit 7 (flags from low byte op)
-        let val = (self.mem[self.pc + 1] as i8) as i16;
+        let val = (self.read_mem(self.pc + 1) as i8) as i16;
         let mut sp = self.sp as u16;
         let result;
         if val >= 0 {
@@ -1931,7 +1950,7 @@ PC: 0x{:04x}",
         //ADD SP, e: H from bit 3, C from bit 7 (flags from low byte op)
         //flags 00hc
         //SP = SP +/- dd ; dd is 8-bit signed number
-        let val = (self.mem[self.pc + 1] as i8) as i16;
+        let val = (self.read_mem(self.pc + 1) as i8) as i16;
         let sp = self.sp as u16;
         let result;
         if val >= 0 {
@@ -2048,7 +2067,7 @@ PC: 0x{:04x}",
 
     //0x06
     fn load_8bit_b_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = self.mem[self.pc + 1];
+        let value = self.read_mem(self.pc + 1);
         self.b = value;
         self.pc += 2;
         8
@@ -2056,7 +2075,7 @@ PC: 0x{:04x}",
 
     //0x0e
     fn load_8bit_c_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = self.mem[self.pc + 1];
+        let value = self.read_mem(self.pc + 1);
         self.c = value;
         self.pc += 2;
         8
@@ -2064,7 +2083,7 @@ PC: 0x{:04x}",
 
     // 0x16
     fn load_8bit_d_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = self.mem[self.pc + 1];
+        let value = self.read_mem(self.pc + 1);
         self.d = value;
         self.pc += 2;
         8
@@ -2072,7 +2091,7 @@ PC: 0x{:04x}",
 
     // 0x1e
     fn load_8bit_e_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = self.mem[self.pc + 1];
+        let value = self.read_mem(self.pc + 1);
         self.e = value;
         self.pc += 2;
         8
@@ -2080,7 +2099,7 @@ PC: 0x{:04x}",
 
     //0x26
     fn load_8bit_h_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = self.mem[self.pc + 1];
+        let value = self.read_mem(self.pc + 1);
         self.h = value;
         self.pc += 2;
         8
@@ -2088,7 +2107,7 @@ PC: 0x{:04x}",
 
     //0x2e
     fn load_8bit_l_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = self.mem[self.pc + 1];
+        let value = self.read_mem(self.pc + 1);
         self.l = value;
         self.pc += 2;
         8
@@ -2097,16 +2116,16 @@ PC: 0x{:04x}",
     //0x36
     fn load_8bit_hl_indirect_from_immediate_value(&mut self, _: u8) -> CycleCount {
         // load value to hl address
-        let value = self.mem[self.pc + 1];
+        let value = self.read_mem(self.pc + 1);
         let hl = self.get_hl() as usize;
-        self.mem[hl] = value;
+        self.write_mem(hl, value);
         self.pc += 2;
         12
     }
 
     //0x3e
     fn load_8bit_a_immediate_value(&mut self, _: u8) -> CycleCount {
-        let value = self.mem[self.pc + 1];
+        let value = self.read_mem(self.pc + 1);
         self.a = value;
         self.pc += 2;
         8
@@ -2118,7 +2137,7 @@ PC: 0x{:04x}",
     //0x02
     fn load_8bit_bc_indirect_from_a(&mut self, _: u8) -> CycleCount {
         let address = self.get_bc() as usize;
-        self.mem[address] = self.a;
+        self.write_mem(address, self.a);
         self.pc += 1;
         8
     }
@@ -2126,7 +2145,7 @@ PC: 0x{:04x}",
     //0x12
     fn load_8bit_de_indirect_from_a(&mut self, _: u8) -> CycleCount {
         let address = self.get_de() as usize;
-        self.mem[address] = self.a;
+        self.write_mem(address, self.a);
         self.pc += 1;
         8
     }
@@ -2137,7 +2156,7 @@ PC: 0x{:04x}",
         //data from the 8-bit A register. The value of HL is incremented
         //after the memory write.
         let address = self.get_hl() as usize;
-        self.mem[address] = self.a;
+        self.write_mem(address, self.a);
         self.set_hl(address as u16 + 1);
         self.pc += 1;
         8
@@ -2149,7 +2168,7 @@ PC: 0x{:04x}",
         //data from the 8-bit A register. The value of HL is decremented
         //after the memory write.
         let address = self.get_hl() as usize;
-        self.mem[address] = self.a;
+        self.write_mem(address, self.a);
         self.set_hl(address as u16 - 1);
         self.pc += 1;
         8
@@ -2160,7 +2179,7 @@ PC: 0x{:04x}",
     //0x0a
     fn load_8bit_a_from_bc_indirect(&mut self, _: u8) -> CycleCount {
         let address = self.get_bc() as usize;
-        self.a = self.mem[address];
+        self.a = self.read_mem(address);
         self.pc += 1;
         8
     }
@@ -2168,7 +2187,7 @@ PC: 0x{:04x}",
     //0x1a
     fn load_8bit_a_from_de_indirect(&mut self, _: u8) -> CycleCount {
         let address = self.get_de() as usize;
-        self.a = self.mem[address];
+        self.a = self.read_mem(address);
         self.pc += 1;
         8
     }
@@ -2180,7 +2199,7 @@ PC: 0x{:04x}",
         //incremented after the memory read.
 
         let address = self.get_hl() as usize;
-        self.a = self.mem[address];
+        self.a = self.read_mem(address);
         self.set_hl(address as u16 + 1);
         self.pc += 1;
         8
@@ -2189,7 +2208,7 @@ PC: 0x{:04x}",
     //0x3a
     fn load_8bit_a_from_hl_dec_indirect(&mut self, _: u8) -> CycleCount {
         let address = self.get_hl() as usize;
-        self.a = self.mem[address];
+        self.a = self.read_mem(address);
         self.set_hl(address as u16 - 1);
         self.pc += 1;
         8
@@ -2214,46 +2233,48 @@ PC: 0x{:04x}",
 
     //0xe0
     fn load_8bit_io_from_a_immediate_offset(&mut self, _: u8) -> CycleCount {
-        let offset = self.mem[self.pc + 1] as usize;
-        self.mem[0xff00 + offset] = self.a;
+        let offset = self.read_mem(self.pc + 1) as usize;
+        self.write_mem(0xff00 + offset, self.a);
         self.pc += 2;
         12
     }
 
     //0xf0
     fn load_8bit_a_from_io_immediate_offset(&mut self, _: u8) -> CycleCount {
-        let offset = self.mem[self.pc + 1] as usize;
-        self.a = self.mem[0xff00 + offset];
+        let offset = self.read_mem(self.pc + 1) as usize;
+        self.a = self.read_mem(0xff00 + offset);
         self.pc += 2;
         12
     }
 
     //0xe2
     fn load_8bit_io_from_a_c_offset(&mut self, _: u8) -> CycleCount {
-        self.mem[0xff00 + self.c as usize] = self.a;
+        self.write_mem(0xff00 + self.c as usize, self.a);
         self.pc += 1;
         8
     }
 
     //0xf2
     fn load_8bit_a_from_io_c_offset(&mut self, _: u8) -> CycleCount {
-        self.a = self.mem[0xff00 + self.c as usize];
+        self.a = self.read_mem(0xff00 + self.c as usize);
         self.pc += 1;
         8
     }
 
     //0xea
     fn load_8bit_memory_from_a(&mut self, _: u8) -> CycleCount {
-        let address = ((self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16) as usize;
-        self.mem[address] = self.a;
+        let address =
+            ((self.read_mem(self.pc + 2) as u16) << 8 | self.read_mem(self.pc + 1) as u16) as usize;
+        self.write_mem(address, self.a);
         self.pc += 3;
         16
     }
 
     //0xfa
     fn load_8bit_a_from_memory(&mut self, _: u8) -> CycleCount {
-        let address = ((self.mem[self.pc + 2] as u16) << 8 | self.mem[self.pc + 1] as u16) as usize;
-        self.a = self.mem[address];
+        let address =
+            ((self.read_mem(self.pc + 2) as u16) << 8 | self.read_mem(self.pc + 1) as u16) as usize;
+        self.a = self.read_mem(address);
         self.pc += 3;
         16
     }
@@ -2346,7 +2367,7 @@ PC: 0x{:04x}",
 
     // 0xcd
     fn call(&mut self, _: u8) -> CycleCount {
-        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+        let target = ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
         // offset the return PC by 3 as this is a 3 byte instruction that should
         // not be repeated
         self.helper_call(target, self.pc + 3);
@@ -2357,7 +2378,7 @@ PC: 0x{:04x}",
     // 0b110cc100
     // 0xc4 nz cc = 00
     fn call_conditional_nz(&mut self, _: u8) -> CycleCount {
-        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+        let target = ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
         //24 cycles if condition true, 12 if not
         if self.f & Z_FLAG_MASK != 0 {
             self.pc += 3;
@@ -2368,7 +2389,7 @@ PC: 0x{:04x}",
     }
     // 0xcc z  cc = 01
     fn call_conditional_z(&mut self, _: u8) -> CycleCount {
-        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+        let target = ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
         //24 cycles if condition true, 12 if not
         if self.f & Z_FLAG_MASK == 0 {
             self.pc += 3;
@@ -2379,7 +2400,7 @@ PC: 0x{:04x}",
     }
     // 0xd4 nc cc = 10
     fn call_conditional_nc(&mut self, _: u8) -> CycleCount {
-        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+        let target = ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
         //24 cycles if condition true, 12 if not
         if self.f & C_FLAG_MASK != 0 {
             self.pc += 3;
@@ -2390,7 +2411,7 @@ PC: 0x{:04x}",
     }
     // 0xdc c  cc = 11
     fn call_conditional_c(&mut self, _: u8) -> CycleCount {
-        let target = ((self.mem[self.pc + 2] as u16) << 8) | self.mem[self.pc + 1] as u16;
+        let target = ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
         //24 cycles if condition true, 12 if not
         if self.f & C_FLAG_MASK == 0 {
             self.pc += 3;
@@ -2405,8 +2426,8 @@ PC: 0x{:04x}",
         let lesser_pc = return_pc as u8;
         let major_pc = (return_pc >> 8) as u8;
 
-        self.mem[self.sp - 1] = major_pc;
-        self.mem[self.sp - 2] = lesser_pc;
+        self.write_mem(self.sp - 1, major_pc);
+        self.write_mem(self.sp - 2, lesser_pc);
         self.sp -= 2;
 
         self.pc = target as usize;
@@ -2471,7 +2492,7 @@ PC: 0x{:04x}",
 
     // handles common return functionality
     fn helper_return(&mut self) {
-        self.pc = ((self.mem[self.sp + 1] as usize) << 8) | self.mem[self.sp] as usize;
+        self.pc = ((self.read_mem(self.sp + 1) as usize) << 8) | self.read_mem(self.sp) as usize;
         self.sp += 2;
     }
 
@@ -2480,8 +2501,8 @@ PC: 0x{:04x}",
     fn pop(&mut self, opcode: u8) -> CycleCount {
         //0b11_xx_0001
         let qq_code = (opcode & 0b00_11_0000) >> 4;
-        let stack_high = self.mem[self.sp + 1];
-        let stack_low = self.mem[self.sp];
+        let stack_high = self.read_mem(self.sp + 1);
+        let stack_low = self.read_mem(self.sp);
         //BC 00, DE 01, HL 10, AF 11
         match qq_code {
             0 => (self.b, self.c) = (stack_high, stack_low),
@@ -2510,8 +2531,8 @@ PC: 0x{:04x}",
             3 => (high_value, low_value) = (self.a, self.f),
             _ => panic!("invalid qq code"),
         }
-        self.mem[self.sp - 1] = high_value;
-        self.mem[self.sp - 2] = low_value;
+        self.write_mem(self.sp - 1, high_value);
+        self.write_mem(self.sp - 2, low_value);
 
         self.sp -= 2;
         self.pc += 1;
