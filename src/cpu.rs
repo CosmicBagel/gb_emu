@@ -191,18 +191,12 @@ impl Cpu {
         let cycles_per_sleep = 20_000u32;
         let mut cycle_count_since_last_sleep = 0u32;
 
-        self.dr_log_buf_writer.
-            write_fmt(format_args!(
-                "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n", 
-                self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc,
-                self.mem[self.pc], self.mem[self.pc + 1], self.mem[self.pc + 2], self.mem[self.pc + 3]
-            ))
-            .unwrap();
+        self.dr_log_line_inital();
 
         let mut last_pc = 0x0000 as usize;
         loop {
             //TEMP hack for gb dr
-            self.mem[0xff44] = 0x90;
+            // self.mem[0xff44] = 0x90;
 
             let opcode = self.mem[self.pc];
 
@@ -240,33 +234,7 @@ impl Cpu {
                     self.interrupt_master_enable = true;
                 }
             }
-
-            self.dr_log_buf_writer
-                .write_fmt(format_args!(
-                    "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
-                    self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
-                ))
-                .unwrap();
-
-            self.dr_log_buf_writer
-                .write_fmt(format_args!("SP:{:04X} PC:{:04X} ", self.sp, self.pc))
-                .unwrap();
-            if self.pc > 0xffff {
-                panic!(
-                    "Program counter exceeding address space!!!\n{}",
-                    self.dump_registers()
-                );
-            }
-            self.dr_log_buf_writer
-                .write_fmt(format_args!(
-                    "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
-                    self.mem[self.pc],
-                    self.mem[self.pc + 1],
-                    self.mem[self.pc + 2],
-                    self.mem[self.pc + 3]
-                ))
-                .unwrap();
-
+            self.dr_log_line();
             self.instruction_count += 1;
 
             //abort the loop if we keep jumping to the same instruction
@@ -274,49 +242,45 @@ impl Cpu {
                 break;
             }
             last_pc = self.pc;
-
-            // check for interrupts and adjust PC accordingly
-            // EI (0xfb) is delayed by one instruction (calling DI right after
-            // EI would mean no interrupts can trigger)
-
-            //IME, IE, IF
-            // IME = master interrupt enable flag (write only), can only be modified by
-            //      EI instruction (enable interrupts), DI instruction (disable interrupts),
-            //      RETI instruction (return and enable interrupts),
-            //      ISR (not an instruction, the interrupt service routine, disables interrupts and
-            //          calls the interrupt handler)
-            //      IME is write only, meaning it is not a part of the addressable memory space
-            //      it is a flag somewhere in the cpu's silicon.
-            // ISR interrupt service handler: magic code on the cpu that runs before any
-            //      interrupt handler is called (does it effect the call stack?)
-            //          1. the IF bit corresponding to the handler is reset (to 0)
-            //          2. disables interrupt handling (IME)
-            //          3. corresponding handler address is called (eg $40), a regular call,
-            //              just like the `call $40` so current PC is pushed onto the stack
-            //          Note: this routine should last 20 cycles (or 5 `nop`s)
-            // IE, located at $ffff, first 5 bits (0-4) correspond to an interrupt
-            //      handler to be enabled or disabled (1/0)
-            // IF, located at $ff0f, first 5 bits (0-4) are flags for each handler, when a bit
-            //      is flipped to 1, the corresponding interrupt has been requested. Usually not
-            //      necessary to write to this, unless the user wants to manually request
-            //      an interrupt, or discard interrupts
-            //
-            //
-            //interrupts (in same bit order as for IE & IF)
-            // VBlank (bit 0)   - $40 -> handles
-            // LCD STAT (bit 1) - $48
-            // Timer (bit 2)    - $50
-            // Serial (bit 3)   - $58
-            // Joypad (bit 4)   - $60
-            // Bit 0 (VBlank) has the highest priority,
-            // and Bit 4 (Joypad) has the lowest priority
-            // If multiple bits are 1 in the IF, then we call the interrupts in this order
-            //
-            // *Interrupts are always disabled when calling an interrupt, so by
-            // default interrupts do not "nest". However user can call IE which will
-            // enabled interrupts while the handler is running, allowing for a nested
-            // interrupt to occur
         }
+    }
+
+    fn dr_log_line_inital(&mut self) {
+        self.dr_log_buf_writer.
+            write_fmt(format_args!(
+                "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n", 
+                self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc,
+                self.mem[self.pc], self.mem[self.pc + 1], self.mem[self.pc + 2], self.mem[self.pc + 3]
+            ))
+            .unwrap();
+    }
+
+    fn dr_log_line(&mut self) {
+        self.dr_log_buf_writer
+            .write_fmt(format_args!(
+                "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
+                self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
+            ))
+            .unwrap();
+
+        self.dr_log_buf_writer
+            .write_fmt(format_args!("SP:{:04X} PC:{:04X} ", self.sp, self.pc))
+            .unwrap();
+        if self.pc > 0xffff {
+            panic!(
+                "Program counter exceeding address space!!!\n{}",
+                self.dump_registers()
+            );
+        }
+        self.dr_log_buf_writer
+            .write_fmt(format_args!(
+                "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
+                self.mem[self.pc],
+                self.mem[self.pc + 1],
+                self.mem[self.pc + 2],
+                self.mem[self.pc + 3]
+            ))
+            .unwrap();
     }
 
     fn update_timer(&mut self, cycle_delta: u32) {
@@ -376,6 +340,43 @@ impl Cpu {
     }
 
     fn check_interrupts(&mut self) -> bool {
+        //IME, IE, IF
+        // IME = master interrupt enable flag (write only), can only be modified by
+        //      EI instruction (enable interrupts), DI instruction (disable interrupts),
+        //      RETI instruction (return and enable interrupts),
+        //      ISR (not an instruction, the interrupt service routine, disables interrupts and
+        //          calls the interrupt handler)
+        //      IME is write only, meaning it is not a part of the addressable memory space
+        //      it is a flag somewhere in the cpu's silicon.
+        // ISR interrupt service handler: magic code on the cpu that runs before any
+        //      interrupt handler is called (does it effect the call stack?)
+        //          1. the IF bit corresponding to the handler is reset (to 0)
+        //          2. disables interrupt handling (IME)
+        //          3. corresponding handler address is called (eg $40), a regular call,
+        //              just like the `call $40` so current PC is pushed onto the stack
+        //          Note: this routine should last 20 cycles (or 5 `nop`s)
+        // IE, located at $ffff, first 5 bits (0-4) correspond to an interrupt
+        //      handler to be enabled or disabled (1/0)
+        // IF, located at $ff0f, first 5 bits (0-4) are flags for each handler, when a bit
+        //      is flipped to 1, the corresponding interrupt has been requested. Usually not
+        //      necessary to write to this, unless the user wants to manually request
+        //      an interrupt, or discard interrupts
+        //
+        //
+        //interrupts (in same bit order as for IE & IF)
+        // VBlank (bit 0)   - $40 -> handles
+        // LCD STAT (bit 1) - $48
+        // Timer (bit 2)    - $50
+        // Serial (bit 3)   - $58
+        // Joypad (bit 4)   - $60
+        // Bit 0 (VBlank) has the highest priority,
+        // and Bit 4 (Joypad) has the lowest priority
+        // If multiple bits are 1 in the IF, then we call the interrupts in this order
+        //
+        // *Interrupts are always disabled when calling an interrupt, so by
+        // default interrupts do not "nest". However user can call IE which will
+        // enabled interrupts while the handler is running, allowing for a nested
+        // interrupt to occur
         if self.interrupt_master_enable {
             let interrupt_enable = self.mem[INTERRUPT_ENABLE_ADDRESS];
             let interrupt_flag = self.mem[INTERRUPT_FLAG_ADDRESS];
