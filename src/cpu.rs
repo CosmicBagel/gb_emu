@@ -1,6 +1,5 @@
 use spin_sleep;
 use std::io::{BufWriter, Write};
-use std::process::exit;
 use std::{
     fs::{read, File},
     thread, time,
@@ -16,6 +15,11 @@ const C_FLAG_MASK: u8 = 0b0001_0000;
 
 const INTERRUPT_ENABLE_ADDRESS: usize = 0xffff;
 const INTERRUPT_FLAG_ADDRESS: usize = 0xff0f;
+
+const DIV_ADDRESS: usize = 0xff04; //divider register
+const TIMA_ADDRESS: usize = 0xff05; //timer counter
+const TMA_ADDRESS: usize = 0xff06; //timer modulo
+const TAC_ADDRESS: usize = 0xff07; //timer control
 
 enum InterruptFlags {
     VBlank = 0b0000_0001,
@@ -86,6 +90,10 @@ pub struct Cpu {
     // disable_interrupt will set this to 0, to stop ime from being enabled
     ei_delay: u8,
 
+    //cycle counters for timers
+    div_cycle_counter: u32,
+    timer_cycle_counter: u32,
+
     dr_log_buf_writer: BufWriter<File>,
     instruction_count: u32,
 }
@@ -115,6 +123,9 @@ impl Cpu {
             ei_delay: 0,
 
             interrupt_master_enable: true,
+
+            div_cycle_counter: 0,
+            timer_cycle_counter: 0,
 
             dr_log_buf_writer: buf_writer,
             instruction_count: 0,
@@ -188,29 +199,24 @@ impl Cpu {
             ))
             .unwrap();
 
-        let limit = 2_000_000u32;
+        let mut last_pc = 0x0000 as usize;
         loop {
-            // 0x7fff is the highest rom address, we'll halt on this
-            // unless there's a reason to allow it
-            if self.pc > 0x7fff {
-                println!("attempted to execute outside of rom space");
-                exit(0);
-            }
-
-            //hack for gb dr
+            //TEMP hack for gb dr
             self.mem[0xff44] = 0x90;
 
             let opcode = self.mem[self.pc];
 
             //execute instruction
             let mut cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
+            self.update_timer(cycle_cost);
 
-            //clear lower 4 bits of F (these are invalid bits)
+            //temp hack: clear lower 4 bits of F (these are invalid bits)
             self.f = self.f & 0xf0;
 
             if self.check_interrupts() {
                 // when true, the ISR (interrupt service handler) consumes 20 cycles
                 cycle_cost += 20;
+                self.update_timer(20);
             }
 
             //todo:
@@ -262,9 +268,12 @@ impl Cpu {
                 .unwrap();
 
             self.instruction_count += 1;
-            if self.instruction_count>= limit {
+
+            //abort the loop if we keep jumping to the same instruction
+            if last_pc == self.pc && self.mem[self.pc] == 0x18 && self.mem[self.pc + 1] == 0xfe {
                 break;
             }
+            last_pc = self.pc;
 
             // check for interrupts and adjust PC accordingly
             // EI (0xfb) is delayed by one instruction (calling DI right after
@@ -310,9 +319,83 @@ impl Cpu {
         }
     }
 
+    fn update_timer(&mut self, cycle_delta: u32) {
+        ///////0xff04 - DIV - divider register
+        //incremented at 16_384Hz (ie ticks per second) 256 ratio of main clock
+        //CGB mode can run at 32_768 (won't be implementing)
+        //Does not increment in STOP mode
+        //**writing any value to this register resets it to zero** */
+        //  this requires reworking all of the CPU functions to go through a
+        //  handler func to read/write memory
+        //  all self.mem[xxxx] accesses need to be replaced with mem_read/mem_write funcs
+
+        ///////0xff05 - TIMA - timer counter
+        //incremented at rate specified by TAC
+        //when it overflows (8 bit val) it resets to value specified by TMA
+        //and the timer interrupt is requested
+
+        ////////0xff06 - TMA - timer modulo
+        //reset point used by TIMA when TIMA overflows
+        //when TIMA overflows interrupt is requested
+
+        // don't use this timestamp diff, instead use the cycle count, to determine how much
+        // emulated cpu time has passed
+        // move spin waiting and cpu yielding to main
+        // loop in main, cpu has a run_step call that returns how many emulation cycles
+        //  occurred
+        // main loop uses this count in spin wait
+        //
+
+        //todo:
+        // - replace self.mem r/w with functions
+        // - replace register r/w with functions? (at least f reg)
+        //      this replaces the hack in run that zeros the bottom bits of f reg
+        // - writing any val to div hw reg zeros it
+        // - impl timer incrementing and div incrementing based on timestamp diff
+        // - impl interrupt request from TIMA overflow
+        // - halt and stop modes?
+
+        self.div_cycle_counter += cycle_delta;
+        let div_increment = self.div_cycle_counter / 256;
+        self.mem[DIV_ADDRESS] = self.mem[DIV_ADDRESS].wrapping_add(div_increment as u8);
+        self.div_cycle_counter -= div_increment * 256;
+
+        ////////0xff07 - TAC - timer control
+        // Bit  2   - Timer Enable
+        // Bits 1-0 - Input Clock Select
+        //    00: CPU Clock / 1024    4096 Hz
+        //    01: CPU Clock / 16    262144 Hz
+        //    10: CPU Clock / 64     65536 Hz
+        //    11: CPU Clock / 256    16384 Hz
+        let tac = self.mem[TAC_ADDRESS];
+        let timer_enable = (tac & 0b0000_0100) != 0;
+        if timer_enable {
+            self.timer_cycle_counter += cycle_delta;
+            let timer_clock_select = tac & 0b0000_0011;
+            let timer_divisor = match timer_clock_select {
+                0b00 => 1024,
+                0b01 => 16,
+                0b10 => 64,
+                0b11 => 256,
+                _ => panic!("invalid clock select"),
+            };
+            let timer_increment = self.timer_cycle_counter / timer_divisor;
+            let (result, overflow) = self.mem[TIMA_ADDRESS].overflowing_add(timer_increment as u8);
+
+            self.mem[TIMA_ADDRESS] = if overflow {
+                let modulo = self.mem[TMA_ADDRESS];
+                //request timer interrupt
+                self.mem[INTERRUPT_FLAG_ADDRESS] |= InterruptFlags::Timer as u8;
+
+                modulo //+ result
+            } else {
+                result
+            }
+        }
+    }
+
     fn check_interrupts(&mut self) -> bool {
         if self.interrupt_master_enable {
-
             let interrupt_enable = self.mem[INTERRUPT_ENABLE_ADDRESS];
             let interrupt_flag = self.mem[INTERRUPT_FLAG_ADDRESS];
 
@@ -2319,7 +2402,6 @@ PC: 0x{:04x}",
 
     // handles common call functionality
     fn helper_call(&mut self, target: u16, return_pc: usize) {
-
         let lesser_pc = return_pc as u8;
         let major_pc = (return_pc >> 8) as u8;
 
