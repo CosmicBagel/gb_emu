@@ -1,9 +1,5 @@
-use spin_sleep;
+use std::fs::{read, File};
 use std::io::{BufWriter, Write};
-use std::{
-    fs::{read, File},
-    thread, time,
-};
 
 pub type CycleCount = u32;
 type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 256];
@@ -35,6 +31,11 @@ enum InterruptAddresses {
     Timer = 0x0050,
     Serial = 0x0058,
     Joypad = 0x0060,
+}
+
+pub enum CpuStepResult {
+    CyclesExecuted(u32),
+    Stopped,
 }
 
 pub struct Cpu {
@@ -96,6 +97,7 @@ pub struct Cpu {
 
     dr_log_buf_writer: BufWriter<File>,
     instruction_count: u32,
+    last_pc: usize,
 }
 
 impl Cpu {
@@ -129,6 +131,7 @@ impl Cpu {
 
             dr_log_buf_writer: buf_writer,
             instruction_count: 0,
+            last_pc: 0x0000,
         }
     }
 
@@ -178,25 +181,16 @@ impl Cpu {
         }
 
         self.apply_post_boot_state(header_sum);
+        self.dr_log_line_inital();
     }
 
-    pub fn run(&mut self) {
-        //**timing stuff**
-        //4.194304 MHz
-        //238.4185791015625 nanoseconds per cycle (ns)
-        //about 4194.304 cycles in 1ms
-        //20972 is about 5ms -> we'll use this as cycles per sleep
-        //1 nop takes 4 cycles
-        let cycle_duration = time::Duration::from_nanos(238);
-        let cycles_per_sleep = 20_000u32;
-        let mut cycle_count_since_last_sleep = 0u32;
-
-        self.dr_log_line_inital();
-
-        let mut last_pc = 0x0000 as usize;
-        loop {
+    pub fn do_step(&mut self) -> CpuStepResult {
+        //abort the loop if we keep jumping to the same instruction
+        if self.last_pc == self.pc && self.mem[self.pc] == 0x18 && self.mem[self.pc + 1] == 0xfe {
+            return CpuStepResult::Stopped;
+        }
             //TEMP hack for gb dr
-            // self.mem[0xff44] = 0x90;
+        self.mem[0xff44] = 0x90;
 
             let opcode = self.mem[self.pc];
 
@@ -213,21 +207,6 @@ impl Cpu {
                 self.update_timer(20);
             }
 
-            //todo:
-            // should be using a timer, subtracting time used to actually process instruction
-            // then only spin waiting for the time remaining
-            // always use multiples of 4 cycles, this will make timing a bit easier
-            // all instructions take multiples of 4 cycles
-            spin_sleep::sleep(cycle_duration * cycle_cost);
-            cycle_count_since_last_sleep += cycle_cost;
-
-            // this is so that the emulator doesn't hog the cpu and get punished
-            // by the scheduler
-            if cycle_count_since_last_sleep >= cycles_per_sleep {
-                cycle_count_since_last_sleep = 0;
-                thread::yield_now();
-            }
-
             if self.ei_delay > 0 {
                 self.ei_delay -= 1;
                 if self.ei_delay == 0 {
@@ -236,13 +215,9 @@ impl Cpu {
             }
             self.dr_log_line();
             self.instruction_count += 1;
+        self.last_pc = self.pc;
 
-            //abort the loop if we keep jumping to the same instruction
-            if last_pc == self.pc && self.mem[self.pc] == 0x18 && self.mem[self.pc + 1] == 0xfe {
-                break;
-            }
-            last_pc = self.pc;
-        }
+        return CpuStepResult::CyclesExecuted(cycle_cost);
     }
 
     fn dr_log_line_inital(&mut self) {
