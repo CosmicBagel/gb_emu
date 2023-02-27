@@ -1,8 +1,10 @@
 use core::time;
 use cpu::{Cpu, CpuStepResult};
 use std::{env, process::exit, thread};
+use video::Video;
 
 mod cpu;
+mod video;
 
 fn main() {
     /*
@@ -43,6 +45,7 @@ fn main() {
 
     let filename = args[1].as_str();
     let mut cpu = Cpu::new();
+    let mut video = Video::new();
 
     //**timing stuff**
     //4.194304 MHz
@@ -77,6 +80,7 @@ fn main() {
                 }
             }
         }
+        video.do_step(&mut cpu);
         thread::yield_now();
     }
 

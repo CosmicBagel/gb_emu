@@ -189,32 +189,32 @@ impl Cpu {
         if self.last_pc == self.pc && self.mem[self.pc] == 0x18 && self.mem[self.pc + 1] == 0xfe {
             return CpuStepResult::Stopped;
         }
-            //TEMP hack for gb dr
+        //TEMP hack for gb dr
         self.mem[0xff44] = 0x90;
 
-            let opcode = self.mem[self.pc];
+        let opcode = self.mem[self.pc];
 
-            //execute instruction
-            let mut cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
-            self.update_timer(cycle_cost);
+        //execute instruction
+        let mut cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
+        self.update_timer(cycle_cost);
 
-            //temp hack: clear lower 4 bits of F (these are invalid bits)
-            self.f = self.f & 0xf0;
+        //temp hack: clear lower 4 bits of F (these are invalid bits)
+        self.f = self.f & 0xf0;
 
-            if self.check_interrupts() {
-                // when true, the ISR (interrupt service handler) consumes 20 cycles
-                cycle_cost += 20;
-                self.update_timer(20);
+        if self.check_interrupts() {
+            // when true, the ISR (interrupt service handler) consumes 20 cycles
+            cycle_cost += 20;
+            self.update_timer(20);
+        }
+
+        if self.ei_delay > 0 {
+            self.ei_delay -= 1;
+            if self.ei_delay == 0 {
+                self.interrupt_master_enable = true;
             }
-
-            if self.ei_delay > 0 {
-                self.ei_delay -= 1;
-                if self.ei_delay == 0 {
-                    self.interrupt_master_enable = true;
-                }
-            }
-            self.dr_log_line();
-            self.instruction_count += 1;
+        }
+        self.dr_log_line();
+        self.instruction_count += 1;
         self.last_pc = self.pc;
 
         return CpuStepResult::CyclesExecuted(cycle_cost);
@@ -410,6 +410,19 @@ impl Cpu {
         self.interrupt_master_enable = false;
         self.helper_call(address, self.pc);
         //needs to wait 20 cycles
+    }
+
+    // for serial, video, sound, joypad, ect
+    // that will be handled outside of the cpu
+    pub fn read_hw_reg(&self, address: usize) -> u8 {
+        //todo add constraints maybe idk
+        self.mem[address]
+    }
+
+    // for serial, video, sound, joypad, ect
+    // that will be handled outside of the cpu
+    pub fn write_hw_reg(&mut self, address: usize, value: u8) {
+        self.mem[address] = value;
     }
 
     //used by cpu instructions, other emulator code just accesses directly
