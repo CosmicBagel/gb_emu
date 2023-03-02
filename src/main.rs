@@ -1,7 +1,7 @@
 use core::time;
 use cpu::{Cpu, CpuStepResult};
-use std::{env, process::exit, thread};
 use ppu::Ppu;
+use std::{env, process::exit, thread};
 
 mod cpu;
 mod ppu;
