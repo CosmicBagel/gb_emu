@@ -54,39 +54,42 @@ fn main() {
     //20972 is about 5ms -> we'll use this as cycles per sleep
     //1 nop takes 4 cycles
     let cycle_duration = time::Duration::from_nanos(238);
-    let cycles_per_sleep = 20_000u32;
-    let mut cycle_count_since_last_sleep = 0u32;
+    let cycles_per_yield = 20_000u32;
+    let mut cycle_count_since_last_yield = 0u32;
 
     cpu.load_rom(filename);
     loop {
-        loop {
-            match cpu.do_step() {
-                CpuStepResult::Stopped => break,
-                CpuStepResult::CyclesExecuted(cycle_cost) => {
-                    //todo:
-                    // should be using a timer, subtracting time used to actually process instruction
-                    // then only spin waiting for the time remaining
-                    // always use multiples of 4 cycles, this will make timing a bit easier
-                    // all instructions take multiples of 4 cycles
-                    spin_sleep::sleep(cycle_duration * cycle_cost);
-                    cycle_count_since_last_sleep += cycle_cost;
+        //todo: fetch joypad input here (keyboard or controller possibly) => update interrupts
 
-                    // this is so that the emulator doesn't hog the cpu and get punished
-                    // by the scheduler
-                    if cycle_count_since_last_sleep >= cycles_per_sleep {
-                        cycle_count_since_last_sleep = 0;
-                        break;
-                    }
-                }
-            }
+        let cycle_cost;
+        match cpu.do_step() {
+            CpuStepResult::Stopped => break,
+            CpuStepResult::CyclesExecuted(cycles) => cycle_cost = cycles,
         }
-        ppu.do_step(&mut cpu);
-        thread::yield_now();
-    }
 
-    /*
-     *  loop
-     *      inner loop a bunch of cpu steps (like 20k ish)
-     *      graphics update
-     */
+        let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
+
+        match ppu_step_result {
+            ppu::PpuStepResult::Normal => {},
+            ppu::PpuStepResult::VBlank => {
+                // draw image to 'pixels' buffer and flip buffer
+                ppu.render_to_screen();
+            },
+        }
+
+        //todo:
+        // should be using a timer, subtracting time used to actually process instruction
+        // then only spin waiting for the time remaining
+        // always use multiples of 4 cycles, this will make timing a bit easier
+        // all instructions take multiples of 4 cycles
+        spin_sleep::sleep(cycle_duration * cycle_cost);
+        cycle_count_since_last_yield += cycle_cost;
+
+        // this is so that the emulator doesn't hog the cpu and get punished
+        // by the scheduler
+        if cycle_count_since_last_yield >= cycles_per_yield {
+            cycle_count_since_last_yield = 0;
+            thread::yield_now();
+        }
+    }
 }
