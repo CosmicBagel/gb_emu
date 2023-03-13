@@ -17,6 +17,8 @@ const TIMA_ADDRESS: usize = 0xff05; //timer counter
 const TMA_ADDRESS: usize = 0xff06; //timer modulo
 const TAC_ADDRESS: usize = 0xff07; //timer control
 
+const DR_GB_LOGGING_ENABLED: bool = false;
+
 enum InterruptFlags {
     VBlank = 0b0000_0001,
     LcdStat = 0b0000_0010,
@@ -95,16 +97,19 @@ pub struct Cpu {
     div_cycle_counter: u32,
     timer_cycle_counter: u32,
 
-    dr_log_buf_writer: BufWriter<File>,
+    dr_log_buf_writer: Option<BufWriter<File>>,
     instruction_count: u32,
     last_pc: usize,
 }
 
 impl Cpu {
     pub fn new() -> Cpu {
-        let dr_log_path = "dr_log.txt";
-        let log_output = File::create(dr_log_path).unwrap();
-        let buf_writer = BufWriter::new(log_output);
+        let mut buf_writer = None;
+        if DR_GB_LOGGING_ENABLED {
+            let dr_log_path = "dr_log.txt";
+            let log_output = File::create(dr_log_path).unwrap();
+            buf_writer = Some(BufWriter::new(log_output));
+        }
 
         Cpu {
             a: 0x00,
@@ -136,7 +141,9 @@ impl Cpu {
     }
 
     pub fn load_rom(&mut self, filename: &str) {
-        let rom = read(filename).unwrap();
+        let rom = read(filename).unwrap_or_else(|e| {
+            panic!("Bad rom file {:}\n{:}", filename, e);
+        });
 
         if rom.len() < 0x0100 {
             // first 256 bytes is header, any rom with less than this is invalid
@@ -181,7 +188,7 @@ impl Cpu {
         }
 
         self.apply_post_boot_state(header_sum);
-        self.dr_log_line_inital();
+        self.dr_log_line_initial();
     }
 
     pub fn do_step(&mut self) -> CpuStepResult {
@@ -220,42 +227,46 @@ impl Cpu {
         return CpuStepResult::CyclesExecuted(cycle_cost);
     }
 
-    fn dr_log_line_inital(&mut self) {
-        self.dr_log_buf_writer.
+    fn dr_log_line_initial(&mut self) {
+        if DR_GB_LOGGING_ENABLED {
+            self.dr_log_buf_writer.as_mut().unwrap().
             write_fmt(format_args!(
                 "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n", 
                 self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc,
                 self.mem[self.pc], self.mem[self.pc + 1], self.mem[self.pc + 2], self.mem[self.pc + 3]
             ))
             .unwrap();
+        }
     }
 
     fn dr_log_line(&mut self) {
-        self.dr_log_buf_writer
-            .write_fmt(format_args!(
-                "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
-                self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
-            ))
-            .unwrap();
+        if DR_GB_LOGGING_ENABLED {
+            self.dr_log_buf_writer.as_mut().unwrap()
+                .write_fmt(format_args!(
+                    "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
+                    self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
+                ))
+                .unwrap();
 
-        self.dr_log_buf_writer
-            .write_fmt(format_args!("SP:{:04X} PC:{:04X} ", self.sp, self.pc))
-            .unwrap();
-        if self.pc > 0xffff {
-            panic!(
-                "Program counter exceeding address space!!!\n{}",
-                self.dump_registers()
-            );
+            self.dr_log_buf_writer.as_mut().unwrap()
+                .write_fmt(format_args!("SP:{:04X} PC:{:04X} ", self.sp, self.pc))
+                .unwrap();
+            if self.pc > 0xffff {
+                panic!(
+                    "Program counter exceeding address space!!!\n{}",
+                    self.dump_registers()
+                );
+            }
+            self.dr_log_buf_writer.as_mut().unwrap()
+                .write_fmt(format_args!(
+                    "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
+                    self.mem[self.pc],
+                    self.mem[self.pc + 1],
+                    self.mem[self.pc + 2],
+                    self.mem[self.pc + 3]
+                ))
+                .unwrap();
         }
-        self.dr_log_buf_writer
-            .write_fmt(format_args!(
-                "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
-                self.mem[self.pc],
-                self.mem[self.pc + 1],
-                self.mem[self.pc + 2],
-                self.mem[self.pc + 3]
-            ))
-            .unwrap();
     }
 
     fn update_timer(&mut self, cycle_delta: u32) {
