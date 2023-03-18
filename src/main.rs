@@ -85,14 +85,15 @@ fn main() {
         // then only spin waiting for the time remaining
         // always use multiples of 4 cycles, this will make timing a bit easier
         // all instructions take multiples of 4 cycles
-        spin_sleep::sleep(cycle_duration * cycle_cost);
+
+        // spin_sleep::sleep(cycle_duration * cycle_cost);
         cycle_count_since_last_yield += cycle_cost;
 
         // this is so that the emulator doesn't hog the cpu and get punished
         // by the scheduler
         if cycle_count_since_last_yield >= cycles_per_yield {
             cycle_count_since_last_yield = 0;
-            thread::yield_now();
+            // thread::yield_now();
         }
     }
 
