@@ -73,11 +73,13 @@ fn main() {
         let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
 
         match ppu_step_result {
-            ppu::PpuStepResult::Normal => {},
-            ppu::PpuStepResult::VBlank => {
+            ppu::PpuStepResult::NoAction => {}
+            ppu::PpuStepResult::Draw => {
                 // draw image to 'pixels' buffer and flip buffer
+                //might turn this into a 'get image' func and have pixels lib
+                //interfaced with outside of ppu
                 ppu.render_to_screen();
-            },
+            }
         }
 
         //todo:
