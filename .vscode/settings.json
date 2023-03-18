@@ -17,9 +17,13 @@
         "RETI",
         "rlca",
         "rrca",
+        "scanline",
+        "scanlines",
         "svbk",
         "tetris",
+        "tilemap",
         "tima",
+        "VRAM",
         "wgpu",
         "winit"
     ]
