@@ -241,14 +241,18 @@ impl Cpu {
 
     fn dr_log_line(&mut self) {
         if DR_GB_LOGGING_ENABLED {
-            self.dr_log_buf_writer.as_mut().unwrap()
+            self.dr_log_buf_writer
+                .as_mut()
+                .unwrap()
                 .write_fmt(format_args!(
                     "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} ",
                     self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l
                 ))
                 .unwrap();
 
-            self.dr_log_buf_writer.as_mut().unwrap()
+            self.dr_log_buf_writer
+                .as_mut()
+                .unwrap()
                 .write_fmt(format_args!("SP:{:04X} PC:{:04X} ", self.sp, self.pc))
                 .unwrap();
             if self.pc > 0xffff {
@@ -257,7 +261,9 @@ impl Cpu {
                     self.dump_registers()
                 );
             }
-            self.dr_log_buf_writer.as_mut().unwrap()
+            self.dr_log_buf_writer
+                .as_mut()
+                .unwrap()
                 .write_fmt(format_args!(
                     "PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
                     self.mem[self.pc],
