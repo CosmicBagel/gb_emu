@@ -57,6 +57,8 @@ fn main() {
     let cycles_per_yield = 20_000u32;
     let mut cycle_count_since_last_yield = 0u32;
 
+    let mut total_cycles = 0;
+
     cpu.load_rom(filename);
     loop {
         //todo: fetch joypad input here (keyboard or controller possibly) => update interrupts
@@ -66,6 +68,7 @@ fn main() {
             CpuStepResult::Stopped => break,
             CpuStepResult::CyclesExecuted(cycles) => cycle_cost = cycles,
         }
+        total_cycles += cycle_cost;
 
         let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
 
@@ -92,4 +95,6 @@ fn main() {
             thread::yield_now();
         }
     }
+
+    println!("Total cycles emulated: {:}", total_cycles);
 }
