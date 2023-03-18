@@ -16,6 +16,7 @@ const DIV_ADDRESS: usize = 0xff04; //divider register
 const TIMA_ADDRESS: usize = 0xff05; //timer counter
 const TMA_ADDRESS: usize = 0xff06; //timer modulo
 const TAC_ADDRESS: usize = 0xff07; //timer control
+const OAM_DMA_ADDRESS: usize = 0xff46; //trigger OAM copy
 
 const DR_GB_LOGGING_ENABLED: bool = false;
 
@@ -456,6 +457,16 @@ impl Cpu {
         match address {
             // 0x4424 => println!("writing {:2x} to {:4x}", value, address),
             DIV_ADDRESS => self.mem[DIV_ADDRESS] = 0x00,
+            OAM_DMA_ADDRESS => {
+                //todo impl OAM DMA https://gbdev.io/pandocs/OAM_DMA_Transfer.html
+                //in cpu
+                //160 cycles, 40 oam entries
+                //do one oam entry per step (assume 4 cycles per sprite)
+                //has to put the cpu into a 'dma mode' where we just
+                //copy sprites for 40 'steps' totalling 160 cycles
+                //need to impl modes anyways for halt/stop
+                todo!("OAM DMA");
+            }
             _ => self.mem[address] = value,
         }
     }
