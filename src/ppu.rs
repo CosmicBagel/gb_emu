@@ -142,6 +142,8 @@ impl Ppu {
             //clear the pixels, so that the first frame when lcd is enabled is blank
             self.pixels = [PixelShade::White; 160 * 144];
             self.mode_func = Ppu::start_mode1_vblank;
+            //we want the 'disabled' screen to be drawn
+            result = PpuStepResult::Draw;
         }
 
         while cycles > 0 {
