@@ -78,7 +78,7 @@ fn main() {
                 // draw image to 'pixels' buffer and flip buffer
                 //might turn this into a 'get image' func and have pixels lib
                 //interfaced with outside of ppu
-                ppu.render_to_screen();
+                let gb_pixels = ppu.get_pixels();
             }
         }
 

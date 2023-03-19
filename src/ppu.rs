@@ -481,11 +481,16 @@ impl Ppu {
         
     }
 
+    // pub fn render_to_screen(&mut self) {
         // will take another param that will allow drawing to screen (pixels lib)
         //might turn this into a 'get image' func and have pixels lib
         //interfaced with outside of ppu
 
-        todo!()
+        // todo!()
+    // }
+
+    pub fn get_pixels(&self) -> [PixelShade; 160 * 144] {
+        self.pixels
     }
 
     /** This indicates whether the LCD is on and the PPU is active. When false both off,
