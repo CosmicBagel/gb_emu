@@ -101,7 +101,7 @@ struct OAM {
 
 #[derive(Clone, Copy)]
 enum PixelShade {
-    Transparent = 0b00,
+    White = 0b00,
     Light = 0b01,
     Medium = 0b10,
     Dark = 0b11,
@@ -112,7 +112,7 @@ type PpuModeFunc = fn(&mut Ppu, &mut Cpu, cycles: u32) -> (u32, PpuStepResult);
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
-            pixels: [PixelShade::Transparent; 160 * 144],
+            pixels: [PixelShade::White; 160 * 144],
             current_mode_counter: 0,
             last_mode3_duration: 0,
             mode_func: Ppu::handle_mode0_hblank,
