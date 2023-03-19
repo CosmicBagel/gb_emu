@@ -108,6 +108,18 @@ enum PixelShade {
     Dark = 0b11,
 }
 
+impl From<u8> for PixelShade {
+    fn from(value: u8) -> Self {
+        match value {
+            0b00 => PixelShade::White,
+            0b01 => PixelShade::Light,
+            0b10 => PixelShade::Medium,
+            0b11 => PixelShade::Dark,
+            _ => PixelShade::White,
+        }
+    }
+}
+
 #[derive(PartialEq)]
 enum LcdStatModeFlag {
     HBlank = 0b00,
