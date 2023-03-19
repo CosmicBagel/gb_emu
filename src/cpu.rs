@@ -10,7 +10,7 @@ const H_FLAG_MASK: u8 = 0b0010_0000;
 const C_FLAG_MASK: u8 = 0b0001_0000;
 
 const INTERRUPT_ENABLE_ADDRESS: usize = 0xffff;
-const INTERRUPT_FLAG_ADDRESS: usize = 0xff0f;
+pub const INTERRUPT_FLAG_ADDRESS: usize = 0xff0f;
 
 const DIV_ADDRESS: usize = 0xff04; //divider register
 const TIMA_ADDRESS: usize = 0xff05; //timer counter
