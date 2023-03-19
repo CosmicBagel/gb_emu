@@ -160,10 +160,6 @@ impl Ppu {
 
         let mut cycles = cycle_count;
         let mut result = PpuStepResult::NoAction;
-        //todo: when a mode switches to another mode,
-        //      update mode in lcd stat register
-        //      update interrupt flags
-        todo!("update lcd stat & interrupt flags");
 
         //if LCD has been disabled since last step, we change vblank and stay until lcd is enabled
         if !self.lcdc_get_lcd_ppu_enabled(cpu) && self.lcdc_last_enabled {
@@ -414,8 +410,6 @@ impl Ppu {
             remainder = self.current_mode_counter - target;
             self.mode_func = Ppu::start_mode0_hblank;
         }
-
-        todo!("impl mode3");
 
         (remainder, PpuStepResult::NoAction)
     }
