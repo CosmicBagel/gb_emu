@@ -83,6 +83,7 @@ pub struct Ppu {
     last_mode3_duration: u32,
     mode_func: PpuModeFunc,
     current_line_sprites: Vec<OAM>,
+    lcdc_last_enabled: bool,
 }
 
 struct OAM {
@@ -117,6 +118,7 @@ impl Ppu {
             last_mode3_duration: 0,
             mode_func: Ppu::handle_mode0_hblank,
             current_line_sprites: vec![],
+            lcdc_last_enabled: false,
         }
     }
 
@@ -134,6 +136,14 @@ impl Ppu {
         //      update mode in lcd stat register
         //      update interrupt flags
         todo!("update lcd stat & interrupt flags");
+
+        //if LCD has been disabled since last step, we change vblank and stay until lcd is enabled
+        if !self.lcdc_get_lcd_ppu_enabled(cpu) && self.lcdc_last_enabled {
+            //clear the pixels, so that the first frame when lcd is enabled is blank
+            self.pixels = [PixelShade::White; 160 * 144];
+            self.mode_func = Ppu::start_mode1_vblank;
+        }
+
         while cycles > 0 {
             let (c, r) = (self.mode_func)(self, cpu, cycles);
 
@@ -147,6 +157,8 @@ impl Ppu {
         //      sync LY (LCD Y coordinate aka which scanline we're on)
         //      if LY=LYC went from 0 to 1, then set the interrupt bit in STAT register
         todo!("sync LY=LYC");
+
+        self.lcdc_last_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
 
         result
     }
@@ -206,6 +218,21 @@ impl Ppu {
         // Action: Nothing (VBlank)
         // Duration: 4560 dots (10 scanlines), 456 dots per "invisible scanline"
         // Accessible v-mem: VRAM, OAM, CGB palettes
+
+        // while lcd is disabled, do not leave vblank mode
+        let lcd_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
+        if !lcd_enabled {
+            return (0, PpuStepResult::NoAction);
+        }
+
+        //when lcd is toggled back on, go to mode 2, reset current scanline to 0
+        if !self.lcdc_last_enabled && lcd_enabled {
+            cpu.write_hw_reg(LY_ADDRESS, 0);
+            self.mode_func = Ppu::start_mode2_object_search;
+            // we trigger a draw
+            return (0, PpuStepResult::Draw);
+        }
+
         let target = 456;
         let mut left_over_cycles = 0;
 
