@@ -1,5 +1,3 @@
-use std::cmp::min_by;
-
 //ppu = picture processing unit
 use crate::cpu::Cpu;
 use crate::cpu::InterruptFlags;
