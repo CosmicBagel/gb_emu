@@ -101,7 +101,7 @@ struct OAM {
 }
 
 #[derive(Clone, Copy)]
-enum PixelShade {
+pub enum PixelShade {
     White = 0b00,
     Light = 0b01,
     Medium = 0b10,
