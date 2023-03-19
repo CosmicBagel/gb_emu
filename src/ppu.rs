@@ -2,6 +2,8 @@ use std::cmp::min_by;
 
 //ppu = picture processing unit
 use crate::cpu::Cpu;
+use crate::cpu::InterruptFlags;
+use crate::cpu::INTERRUPT_FLAG_ADDRESS;
 
 /*
 LCD controller runs at same speed as cpu 2^22hz (4.194_304 MHz)
@@ -117,6 +119,13 @@ enum LcdStatModeFlag {
     DataToLCD = 0b11,
 }
 
+enum StatInterrupt {
+    LycEqLy = 0b0100_0000,
+    OAMSearch = 0b0010_0000,
+    VBlank = 0b0001_0000,
+    HBlank = 0b0000_1000,
+}
+
 impl From<u8> for LcdStatModeFlag {
     fn from(value: u8) -> Self {
         match value {
@@ -193,9 +202,8 @@ impl Ppu {
     fn start_mode0_hblank(&mut self, cpu: &mut Cpu, cycles: u32) -> (u32, PpuStepResult) {
         // this 'start' state consumes no dots/cycles, ie we just pass the cycles value
         self.mode_func = Ppu::handle_mode0_hblank;
-        // set flag interrupt hblank
-        // update LCD state mode
-        todo!("lcd state mode & flag interrupt");
+        Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::HBlank);
+        Ppu::stat_flag_interrupt(cpu, StatInterrupt::HBlank);
         self.current_mode_counter = 0;
         (cycles, PpuStepResult::NoAction)
     }
@@ -235,7 +243,8 @@ impl Ppu {
         self.mode_func = Ppu::handle_mode1_vblank;
         // set flag interrupt
         // update LCD state mode
-        todo!("lcd state mode & flag interrupt");
+        Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::VBlank);
+        Ppu::stat_flag_interrupt(cpu, StatInterrupt::VBlank);
         self.current_mode_counter = 0;
         (cycles, PpuStepResult::Draw)
     }
@@ -288,7 +297,8 @@ impl Ppu {
         self.mode_func = Ppu::handle_mode2_object_search;
         // set flag interrupt
         // update LCD state mode
-        todo!("lcd state mode & flag interrupt");
+        Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::OAMSearch);
+        Ppu::stat_flag_interrupt(cpu, StatInterrupt::OAMSearch);
         self.current_mode_counter = 0;
 
         (cycles, PpuStepResult::NoAction)
@@ -345,9 +355,7 @@ impl Ppu {
     fn start_mode3_picture_gen(&mut self, cpu: &mut Cpu, cycles: u32) -> (u32, PpuStepResult) {
         // this 'start' state consumes no dots/cycles, ie we just pass the cycles value
         self.mode_func = Ppu::handle_mode3_picture_gen;
-        // set flag interrupt
-        // update LCD state mode
-        todo!("lcd state mode & flag interrupt");
+        Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::DataToLCD);
         self.current_mode_counter = 0;
 
         (cycles, PpuStepResult::NoAction)
@@ -475,5 +483,23 @@ impl Ppu {
 
     fn stat_get_mode_flag(cpu: &Cpu) -> LcdStatModeFlag {
         LcdStatModeFlag::from(cpu.read_hw_reg(STAT_ADDRESS) & 0b0000_0011)
+    }
+
+    fn stat_set_mode_flag(cpu: &mut Cpu, flag: LcdStatModeFlag) {
+        let stat = cpu.read_hw_reg(STAT_ADDRESS) & 0b1111_1100;
+        cpu.write_hw_reg(STAT_ADDRESS, stat | flag as u8);
+    }
+
+    /// If the interrupt is enabled in the stat register, flag the interrupt
+    fn stat_flag_interrupt(cpu: &mut Cpu, int: StatInterrupt) {
+        let interrupt_enabled = cpu.read_hw_reg(STAT_ADDRESS) & (int as u8) != 0;
+        if interrupt_enabled {
+            //flag STAT interrupt
+            let interrupt_flag = cpu.read_hw_reg(INTERRUPT_FLAG_ADDRESS);
+            cpu.write_hw_reg(
+                INTERRUPT_FLAG_ADDRESS,
+                interrupt_flag | InterruptFlags::LcdStat as u8,
+            );
+        }
     }
 }
