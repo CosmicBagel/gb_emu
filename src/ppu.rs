@@ -108,6 +108,27 @@ enum PixelShade {
     Dark = 0b11,
 }
 
+#[derive(PartialEq)]
+enum LcdStatModeFlag {
+    HBlank = 0b00,
+    VBlank = 0b01,
+    OAMSearch = 0b10,
+    ///aka image gen
+    DataToLCD = 0b11,
+}
+
+impl From<u8> for LcdStatModeFlag {
+    fn from(value: u8) -> Self {
+        match value {
+            v if v == LcdStatModeFlag::HBlank as u8 => LcdStatModeFlag::HBlank,
+            v if v == LcdStatModeFlag::VBlank as u8 => LcdStatModeFlag::VBlank,
+            v if v == LcdStatModeFlag::OAMSearch as u8 => LcdStatModeFlag::OAMSearch,
+            v if v == LcdStatModeFlag::DataToLCD as u8 => LcdStatModeFlag::DataToLCD,
+            _ => LcdStatModeFlag::HBlank,
+        }
+    }
+}
+
 type PpuModeFunc = fn(&mut Ppu, &mut Cpu, cycles: u32) -> (u32, PpuStepResult);
 
 impl Ppu {
@@ -141,7 +162,11 @@ impl Ppu {
         if !self.lcdc_get_lcd_ppu_enabled(cpu) && self.lcdc_last_enabled {
             //clear the pixels, so that the first frame when lcd is enabled is blank
             self.pixels = [PixelShade::White; 160 * 144];
-            self.mode_func = Ppu::start_mode1_vblank;
+            //use lcd stat mode, as it will be up to date
+
+            if Ppu::stat_get_mode_flag(cpu) != LcdStatModeFlag::VBlank {
+                self.mode_func = Ppu::start_mode1_vblank;
+            }
             //we want the 'disabled' screen to be drawn
             result = PpuStepResult::Draw;
         }
@@ -446,5 +471,9 @@ impl Ppu {
      * ignored in that case. Only Sprites may still be displayed (if enabled). */
     fn lcdc_get_bg_and_window_enable(&self, cpu: &Cpu) -> bool {
         cpu.read_hw_reg(LCDC_ADDRESS) & 0b0000_0001 != 0
+    }
+
+    fn stat_get_mode_flag(cpu: &Cpu) -> LcdStatModeFlag {
+        LcdStatModeFlag::from(cpu.read_hw_reg(STAT_ADDRESS) & 0b0000_0011)
     }
 }
