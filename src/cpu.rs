@@ -20,7 +20,7 @@ const OAM_DMA_ADDRESS: usize = 0xff46; //trigger OAM copy
 
 const DR_GB_LOGGING_ENABLED: bool = false;
 
-enum InterruptFlags {
+pub enum InterruptFlags {
     VBlank = 0b0000_0001,
     LcdStat = 0b0000_0010,
     Timer = 0b0000_0100,
