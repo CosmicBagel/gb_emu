@@ -192,7 +192,7 @@ impl Ppu {
             cpu.write_hw_reg(LY_ADDRESS, ly + 1);
 
             if ly >= 144 {
-                //end of 'visible' scanlines, we switch to vblank for 10 invisible scannlines
+                //end of 'visible' scanlines, we switch to vblank for 10 invisible scanlines
                 self.mode_func = Ppu::start_mode1_vblank;
             } else {
                 //next scanline is visible
