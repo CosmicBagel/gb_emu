@@ -187,10 +187,8 @@ impl Ppu {
                 result = r;
             }
         }
-        //todo: sync LY=LYC status in LCD STAT register
-        //      sync LY (LCD Y coordinate aka which scanline we're on)
-        //      if LY=LYC went from 0 to 1, then set the interrupt bit in STAT register
-        todo!("sync LY=LYC");
+
+        Ppu::stat_update_ly_eq_lyc_bit(cpu);
 
         self.lcdc_last_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
 
@@ -499,5 +497,22 @@ impl Ppu {
                 interrupt_flag | InterruptFlags::LcdStat as u8,
             );
         }
+    }
+
+    fn stat_update_ly_eq_lyc_bit(cpu: &mut Cpu) {
+        let stat = cpu.read_hw_reg(STAT_ADDRESS);
+        let ly = cpu.read_hw_reg(LY_ADDRESS);
+        let lyc = cpu.read_hw_reg(LYC_ADDRESS);
+
+        let new_bit2 = ((ly == lyc) as u8) << 2;
+        let last_bit2 = stat & 0b0000_0100;
+
+        if new_bit2 != 0 && last_bit2 == 0 {
+            //only flag for interrupt when bit2 goes from 0 to 1
+            Ppu::stat_flag_interrupt(cpu, StatInterrupt::LycEqLy);
+        }
+
+        let stat_updated = stat & 0b1111_1011 | new_bit2;
+        cpu.write_hw_reg(STAT_ADDRESS, stat_updated);
     }
 }
