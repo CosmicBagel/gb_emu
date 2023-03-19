@@ -84,6 +84,12 @@ pub struct Ppu {
     mode_func: PpuModeFunc,
     current_line_sprites: Vec<OAM>,
     lcdc_last_enabled: bool,
+
+    //temp for test
+    box_x: usize,
+    box_y: usize,
+    box_vel_x: i32,
+    box_vel_y: i32,
 }
 
 struct OAM {
@@ -159,6 +165,12 @@ impl Ppu {
             mode_func: Ppu::handle_mode0_hblank,
             current_line_sprites: vec![],
             lcdc_last_enabled: false,
+
+            //temp for test
+            box_x: 0,
+            box_y: 0,
+            box_vel_x: 1,
+            box_vel_y: 1,
         }
     }
 
@@ -250,6 +262,8 @@ impl Ppu {
         Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::VBlank);
         Ppu::stat_flag_interrupt(cpu, StatInterrupt::VBlank);
         self.current_mode_counter = 0;
+        //temp for test
+        self.update_test_image();
         (cycles, PpuStepResult::Draw)
     }
 
@@ -426,7 +440,47 @@ impl Ppu {
         (remainder, PpuStepResult::NoAction)
     }
 
-    pub fn render_to_screen(&mut self) {
+    fn update_test_image(&mut self) {
+        const BOX_SIZE: usize = 5;
+
+        // let w = PixelShade::White;
+        // let l = PixelShade::Light;
+        // let m = PixelShade::Medium;
+        // let d = PixelShade::Dark;
+
+        // draw some gradient-ish lines
+        let mut shade = PixelShade::White;
+        for y in 0..144 {
+            if y % 5 == 0 {
+                shade = PixelShade::from((shade as u8 + 1) % 3); 
+            }
+            for x in 0..160 {
+                self.pixels[x + (y * 160)] = shade;
+            }
+        }
+
+        // draw box
+        let left_edge = self.box_y * 160 + self.box_x;
+        for y in 0..BOX_SIZE {
+            for x in 0..BOX_SIZE {
+                self.pixels[ left_edge + y * 160 + x ] = PixelShade::Dark;
+            }
+        }
+
+        //update velocity
+        if self.box_x as i32 + self.box_vel_x >= (160 - BOX_SIZE as i32) || self.box_x as i32 + self.box_vel_x < 0 {
+            self.box_vel_x *= -1;
+        }
+        if self.box_y as i32 + self.box_vel_y >= (160 - BOX_SIZE as i32) || self.box_y as i32 + self.box_vel_y < 0 {
+            self.box_vel_y *= -1;
+        }
+
+        //update box pos
+        self.box_x = (self.box_x as i32 + self.box_vel_x) as usize;
+        self.box_y = (self.box_y as i32 + self.box_vel_y) as usize;
+        
+    }
+
         // will take another param that will allow drawing to screen (pixels lib)
         //might turn this into a 'get image' func and have pixels lib
         //interfaced with outside of ppu
