@@ -6,6 +6,7 @@
         "egui",
         "endianness",
         "gameboy",
+        "hblank",
         "hdma",
         "instrs",
         "Joypad",
@@ -23,6 +24,7 @@
         "tetris",
         "tilemap",
         "tima",
+        "vblank",
         "VRAM",
         "wgpu",
         "winit"
