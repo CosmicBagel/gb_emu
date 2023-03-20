@@ -1,6 +1,6 @@
 use core::time;
 use cpu::{Cpu, CpuStepResult};
-// use pixels::{Error, Pixels, SurfaceTexture};
+use pixels::{Error, Pixels, SurfaceTexture};
 use ppu::Ppu;
 use std::{env, process::exit, thread};
 use winit::{
@@ -13,6 +13,7 @@ use winit_input_helper::WinitInputHelper;
 
 mod cpu;
 mod ppu;
+mod gui;
 
 const GB_WIDTH: u32 = 160;
 const GB_HEIGHT: u32 = 144;
@@ -48,6 +49,15 @@ fn main() {
             .with_min_inner_size(min_size)
             .build(&event_loop)
             .unwrap()
+    };
+
+    let mut pixels = {
+        let window_size = window.inner_size();
+        let scale_factor = window.scale_factor() as f32;
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+        let pixels = Pixels::new(GB_WIDTH, GB_HEIGHT, surface_texture).unwrap();
+
+        pixels
     };
 
     //**timing stuff**
@@ -88,7 +98,7 @@ fn main() {
 
             //todo: fetch joypad input here (keyboard or controller possibly) => update interrupts
 
-            //process emulator here
+            //process emulator cycles until a frame is ready
             let mut cycle_cost = 0;
             loop {
                 match cpu.do_step() {
@@ -143,6 +153,29 @@ fn main() {
                 //might turn this into a 'get image' func and have pixels lib
                 //interfaced with outside of ppu
                 let gb_pixels = ppu.get_pixels();
+                let frame = pixels.get_frame_mut();
+                for (gb_ind, gb_pixel) in gb_pixels.iter().enumerate() {
+                    let pixel_ind = gb_ind * 4;
+                    let pixel = &mut frame[pixel_ind..pixel_ind + 4];
+
+                    match gb_pixel {
+                        ppu::PixelShade::White => pixel.copy_from_slice(&[0xff, 0xff, 0xff, 0xff]),
+                        ppu::PixelShade::Light => pixel.copy_from_slice(&[0xaa, 0xaa, 0xaa, 0xff]),
+                        ppu::PixelShade::Medium => pixel.copy_from_slice(&[0x66, 0x66, 0x66, 0xff]),
+                        ppu::PixelShade::Dark => pixel.copy_from_slice(&[0x22, 0x22, 0x22, 0xff]),
+                    }
+                }
+
+                let render_result = pixels.render_with(|encoder, render_target, context| {
+                    context.scaling_renderer.render(encoder, render_target);
+                    Ok(())
+                });
+
+                if let Err(err) = render_result {
+                    println!("pixels.render() failed: {err}");
+                    control_flow.set_exit();
+                }
+
                 println!("draw");
             }
             Event::LoopDestroyed => {
