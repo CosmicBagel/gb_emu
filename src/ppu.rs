@@ -441,7 +441,7 @@ impl Ppu {
     }
 
     fn update_test_image(&mut self) {
-        const BOX_SIZE: usize = 5;
+        const BOX_SIZE: usize = 8;
 
         // let w = PixelShade::White;
         // let l = PixelShade::Light;
