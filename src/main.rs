@@ -164,8 +164,9 @@ fn main() {
                 let gb_pixels = ppu.get_pixels();
                 let frame = pixels.get_frame_mut();
                 for (gb_ind, gb_pixel) in gb_pixels.iter().enumerate() {
-                    let pixel_ind = gb_ind * 4;
-                    let pixel = &mut frame[pixel_ind..pixel_ind + 4];
+                    const PIXEL_BYTES: usize = 4;
+                    let pixel_ind = gb_ind * PIXEL_BYTES;
+                    let pixel = &mut frame[pixel_ind..pixel_ind + PIXEL_BYTES];
 
                     match gb_pixel {
                         ppu::PixelShade::White => pixel.copy_from_slice(&[0xff, 0xff, 0xff, 0xff]),
