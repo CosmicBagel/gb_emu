@@ -2,6 +2,7 @@ use std::fs::{read, File};
 use std::io::{BufWriter, Write};
 
 use crate::addresses::*;
+use crate::constants::*;
 
 pub type CycleCount = u32;
 type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 256];
@@ -10,8 +11,6 @@ const Z_FLAG_MASK: u8 = 0b1000_0000;
 const N_FLAG_MASK: u8 = 0b0100_0000;
 const H_FLAG_MASK: u8 = 0b0010_0000;
 const C_FLAG_MASK: u8 = 0b0001_0000;
-
-const DR_GB_LOGGING_ENABLED: bool = false;
 
 pub enum InterruptFlags {
     VBlank = 0b0000_0001,
@@ -195,6 +194,8 @@ impl Cpu {
         //temp hack: clear lower 4 bits of F (these are invalid bits)
         self.f = self.f & 0xf0;
 
+        // todo, check interrupts BEFORE executing next instruction (so that PPU triggered
+        // interrupts happen as soon as possible)
         if self.check_interrupts() {
             // when true, the ISR (interrupt service handler) consumes 20 cycles
             cycle_cost += 20;
@@ -572,11 +573,11 @@ PC: 0x{:04x}",
         self.mem[0xff00] = 0xcf; //p1
         self.mem[0xff01] = 0x00; //sb
         self.mem[0xff02] = 0x7e; //sc
-        self.mem[0xff04] = 0xab; //div
-        self.mem[0xff05] = 0x00; //tima
-        self.mem[0xff06] = 0x00; //tma
-        self.mem[0xff07] = 0xf8; //tac
-        self.mem[0xff0f] = 0xe1; //if
+        self.mem[DIV_ADDRESS] = 0xab; //div
+        self.mem[TIMA_ADDRESS] = 0x00; //tima
+        self.mem[TMA_ADDRESS] = 0x00; //tma
+        self.mem[TAC_ADDRESS] = 0xf8; //tac
+        self.mem[INTERRUPT_FLAG_ADDRESS] = 0xe1; //if
 
         self.mem[0xff10] = 0x80; //nr10
         self.mem[0xff11] = 0xbf; //nr11
@@ -600,12 +601,12 @@ PC: 0x{:04x}",
         self.mem[0xff25] = 0xf3; //nr51
         self.mem[0xff26] = 0xf1; //nr52
 
-        self.mem[0xff40] = 0x91; //lcdc
-        self.mem[0xff41] = 0x85; //stat
+        self.mem[LCDC_ADDRESS] = 0b1001_0001; //0x91 //lcdc
+        self.mem[STAT_ADDRESS] = 0b1000_0101; //0x85 //stat
         self.mem[0xff42] = 0x00; //scy
         self.mem[0xff43] = 0x00; //scx
-        self.mem[0xff44] = 0x00; //ly
-        self.mem[0xff45] = 0x00; //lyc
+        self.mem[LY_ADDRESS] = 0x00; //ly
+        self.mem[LYC_ADDRESS] = 0x00; //lyc
         self.mem[0xff46] = 0xff; //dma
         self.mem[0xff47] = 0xfc; //bgp
         self.mem[0xff48] = 0x00; //obp0 (technically uninitialized)
@@ -627,7 +628,7 @@ PC: 0x{:04x}",
         self.mem[0xff6a] = 0xff; //ocps
         self.mem[0xff6b] = 0xff; //ocpd
         self.mem[0xff70] = 0xff; //svbk
-        self.mem[0xffff] = 0x00; //ie
+        self.mem[INTERRUPT_ENABLE_ADDRESS] = 0x00; //ie
     }
 
     fn build_bytecode_table() -> BytecodeTable {
