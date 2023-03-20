@@ -72,6 +72,7 @@ pub enum PixelShade {
     Light = 0b01,
     Medium = 0b10,
     Dark = 0b11,
+    Disabled = 0xff,
 }
 
 impl From<u8> for PixelShade {
@@ -81,6 +82,7 @@ impl From<u8> for PixelShade {
             0b01 => PixelShade::Light,
             0b10 => PixelShade::Medium,
             0b11 => PixelShade::Dark,
+            0xff => PixelShade::Disabled,
             _ => PixelShade::White,
         }
     }
@@ -145,19 +147,6 @@ impl Ppu {
         let mut cycles = cycle_count;
         let mut result = PpuStepResult::NoAction;
 
-        //if LCD has been disabled since last step, we change vblank and stay until lcd is enabled
-        if !self.lcdc_get_lcd_ppu_enabled(cpu) && self.lcdc_last_enabled {
-            //clear the pixels, so that the first frame when lcd is enabled is blank
-            self.pixels = [PixelShade::White; 160 * 144];
-            //use lcd stat mode, as it will be up to date
-
-            if Ppu::stat_get_mode_flag(cpu) != LcdStatModeFlag::VBlank {
-                self.mode_func = Ppu::start_mode1_vblank;
-            }
-            //we want the 'disabled' screen to be drawn
-            result = PpuStepResult::Draw;
-        }
-
         while cycles > 0 {
             let (c, r) = (self.mode_func)(self, cpu, cycles);
 
@@ -170,6 +159,7 @@ impl Ppu {
 
         Ppu::stat_update_ly_eq_lyc_bit(cpu);
 
+        //tracking the state of lcd enabled for vblank
         self.lcdc_last_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
 
         result
@@ -222,8 +212,16 @@ impl Ppu {
         Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::VBlank);
         Ppu::stat_flag_interrupt(cpu, StatInterrupt::VBlank);
         self.current_mode_counter = 0;
-        //temp for test
-        self.update_test_image();
+
+
+        let lcd_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
+        if !lcd_enabled {
+            self.pixels = [PixelShade::Disabled; GB_WIDTH * GB_HEIGHT];
+        } else {
+            //temp for test
+            self.update_test_image();
+        }
+
         (cycles, PpuStepResult::Draw)
     }
 
@@ -233,23 +231,28 @@ impl Ppu {
         // Duration: 4560 dots (10 scanlines), 456 dots per "invisible scanline"
         // Accessible v-mem: VRAM, OAM, CGB palettes
 
-        // while lcd is disabled, do not leave vblank mode
         let lcd_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
-        if !lcd_enabled {
-            return (0, PpuStepResult::NoAction);
-        }
 
         //when lcd is toggled back on, go to mode 2, reset current scanline to 0
         if !self.lcdc_last_enabled && lcd_enabled {
             cpu.write_hw_reg(LY_ADDRESS, 0);
             self.mode_func = Ppu::start_mode2_object_search;
-            // we trigger a draw
+            return (0, PpuStepResult::NoAction);
+        }
+
+        // when lcd is disabled, clear the screen
+        if !lcd_enabled && self.lcdc_last_enabled {
+            self.pixels = [PixelShade::Disabled; GB_WIDTH * GB_HEIGHT];
             return (0, PpuStepResult::Draw);
+        }
+
+        // while lcd is disabled, do not leave vblank mode
+        if !lcd_enabled {
+            return (0, PpuStepResult::NoAction);
         }
 
         let target = 456;
         let mut left_over_cycles = 0;
-
         // if count > target and we're on LY = 153, LY = 0 and leave vblank
         // if count > target and LV <= 153, increment LY
         if self.current_mode_counter + cycles >= target {
