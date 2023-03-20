@@ -186,13 +186,6 @@ impl Cpu {
     }
 
     pub fn do_step(&mut self) -> CpuStepResult {
-        //abort the loop if we keep jumping to the same instruction
-        if self.last_pc == self.pc && self.mem[self.pc] == 0x18 && self.mem[self.pc + 1] == 0xfe {
-            return CpuStepResult::Stopped;
-        }
-        //TEMP hack for gb dr
-        self.mem[0xff44] = 0x90;
-
         let opcode = self.mem[self.pc];
 
         //execute instruction
