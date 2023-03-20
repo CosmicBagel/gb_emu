@@ -1,6 +1,8 @@
 use std::fs::{read, File};
 use std::io::{BufWriter, Write};
 
+use crate::addresses::*;
+
 pub type CycleCount = u32;
 type BytecodeTable = [fn(&mut Cpu, u8) -> CycleCount; 256];
 
@@ -8,15 +10,6 @@ const Z_FLAG_MASK: u8 = 0b1000_0000;
 const N_FLAG_MASK: u8 = 0b0100_0000;
 const H_FLAG_MASK: u8 = 0b0010_0000;
 const C_FLAG_MASK: u8 = 0b0001_0000;
-
-const INTERRUPT_ENABLE_ADDRESS: usize = 0xffff;
-pub const INTERRUPT_FLAG_ADDRESS: usize = 0xff0f;
-
-const DIV_ADDRESS: usize = 0xff04; //divider register
-const TIMA_ADDRESS: usize = 0xff05; //timer counter
-const TMA_ADDRESS: usize = 0xff06; //timer modulo
-const TAC_ADDRESS: usize = 0xff07; //timer control
-const OAM_DMA_ADDRESS: usize = 0xff46; //trigger OAM copy
 
 const DR_GB_LOGGING_ENABLED: bool = false;
 

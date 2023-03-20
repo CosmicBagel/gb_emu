@@ -11,6 +11,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
+mod addresses;
 mod cpu;
 mod ppu;
 mod gui;
