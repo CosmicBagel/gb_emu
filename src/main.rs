@@ -26,7 +26,6 @@ fn init_emulator() -> (Cpu, Ppu) {
         args[1].as_str()
     };
 
-    let filename = args[1].as_str();
     let mut cpu = Cpu::new();
     cpu.load_rom(filename);
     (cpu, Ppu::new())
