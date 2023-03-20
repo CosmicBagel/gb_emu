@@ -185,8 +185,6 @@ fn main() {
                     println!("pixels.render() failed: {err}");
                     control_flow.set_exit();
                 }
-
-                println!("draw");
             }
             Event::LoopDestroyed => {
                 println!("Total cycles emulated: {:}", total_cycles);
