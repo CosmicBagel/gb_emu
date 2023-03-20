@@ -3,6 +3,7 @@ use crate::cpu::Cpu;
 use crate::cpu::InterruptFlags;
 
 use crate::addresses::*;
+use crate::constants::*;
 
 /*
 LCD controller runs at same speed as cpu 2^22hz (4.194_304 MHz)
@@ -37,7 +38,7 @@ pub enum PpuStepResult {
 }
 
 pub struct Ppu {
-    pixels: [PixelShade; 160 * 144],
+    pixels: [PixelShade; GB_WIDTH * GB_HEIGHT],
     current_mode_counter: u32,
     last_mode3_duration: u32,
     mode_func: PpuModeFunc,
@@ -118,7 +119,7 @@ type PpuModeFunc = fn(&mut Ppu, &mut Cpu, cycles: u32) -> (u32, PpuStepResult);
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
-            pixels: [PixelShade::White; 160 * 144],
+            pixels: [PixelShade::Disabled; GB_WIDTH * GB_HEIGHT],
             current_mode_counter: 0,
             last_mode3_duration: 0,
             mode_func: Ppu::handle_mode0_hblank,
@@ -201,7 +202,7 @@ impl Ppu {
             let ly = cpu.read_hw_reg(LY_ADDRESS);
             cpu.write_hw_reg(LY_ADDRESS, ly + 1);
 
-            if ly >= 144 {
+            if ly >= GB_HEIGHT as u8 {
                 //end of 'visible' scanlines, we switch to vblank for 10 invisible scanlines
                 self.mode_func = Ppu::start_mode1_vblank;
             } else {
@@ -254,7 +255,7 @@ impl Ppu {
         if self.current_mode_counter + cycles >= target {
             left_over_cycles = self.current_mode_counter + cycles - target;
             let ly = cpu.read_hw_reg(LY_ADDRESS);
-            if ly <= 153 {
+            if ly < (GB_HEIGHT + INVISIBLE_VBLANK_LINES) as u8 {
                 cpu.write_hw_reg(LY_ADDRESS, ly + 1);
                 self.current_mode_counter = 0;
             } else {
@@ -297,12 +298,19 @@ impl Ppu {
             //10 sprites max, sorted in order of greatest x to least x
             //  so that the sprite with least x value will draw above sprites with greater x values
             self.current_line_sprites.clear();
-            let sprite_size = if self.lcdc_get_obj_size(cpu) { 15 } else { 7 };
+            const BIG_SPRITE_SIZE: u8 = 16;
+            const NORMAL_SPRITE_SIZE: u8 = 8;
+            let sprite_size = if self.lcdc_get_obj_size(cpu) {
+                BIG_SPRITE_SIZE
+            } else {
+                NORMAL_SPRITE_SIZE
+            };
 
             //determine sprites effecting line
             let mut offset = 0x00;
             let ly = cpu.read_hw_reg(LY_ADDRESS);
-            for _ in 0..40 {
+            for _ in 0..OAM_TABLE_SIZE {
+                const OAM_BYTE_SIZE: usize = 4;
                 let oam = OAM {
                     y_position: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset),
                     x_position: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 1),
@@ -310,12 +318,12 @@ impl Ppu {
                     attributes: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 3),
                 };
 
-                if ly >= oam.y_position && ly - oam.y_position <= sprite_size {
+                if ly >= oam.y_position && ly - oam.y_position < sprite_size {
                     // on our line
                     self.current_line_sprites.push(oam);
                 }
 
-                offset += 4;
+                offset += OAM_BYTE_SIZE;
             }
 
             // sort by x postilion least to greatest (sort the sprites left to right)
@@ -409,28 +417,35 @@ impl Ppu {
 
         // draw some gradient-ish lines
         let mut shade = PixelShade::White;
-        for y in 0..144 {
-            if y % 5 == 0 {
-                shade = PixelShade::from((shade as u8 + 1) % 3); 
+        for y in 0..GB_HEIGHT as usize {
+            if y % 8 == 0 {
+                shade = PixelShade::from((shade as u8 + 1) % 3);
             }
-            for x in 0..160 {
-                self.pixels[x + (y * 160)] = shade;
+            for x in 0..GB_WIDTH as usize {
+                self.pixels[x + (y * GB_WIDTH as usize)] = shade;
             }
         }
 
         // draw box
-        let left_edge = self.box_y * 160 + self.box_x;
+        let left_edge = self.box_y * GB_WIDTH + self.box_x;
         for y in 0..BOX_SIZE {
             for x in 0..BOX_SIZE {
-                self.pixels[ left_edge + y * 160 + x ] = PixelShade::Dark;
+                self.pixels[left_edge + y * GB_WIDTH + x] = PixelShade::Dark;
             }
         }
 
         //update velocity
-        if self.box_x as i32 + self.box_vel_x >= (160 - BOX_SIZE as i32) || self.box_x as i32 + self.box_vel_x < 0 {
+        const GB_WIDTH_I: i32 = GB_WIDTH as i32;
+        const GB_HEIGHT_I: i32 = GB_HEIGHT as i32;
+        const BOX_SIZE_I: i32 = BOX_SIZE as i32;
+        if self.box_x as i32 + self.box_vel_x > (GB_WIDTH_I - BOX_SIZE_I)
+            || self.box_x as i32 + self.box_vel_x < 0
+        {
             self.box_vel_x *= -1;
         }
-        if self.box_y as i32 + self.box_vel_y >= (160 - BOX_SIZE as i32) || self.box_y as i32 + self.box_vel_y < 0 {
+        if self.box_y as i32 + self.box_vel_y > (GB_HEIGHT_I - BOX_SIZE_I)
+            || self.box_y as i32 + self.box_vel_y < 0
+        {
             self.box_vel_y *= -1;
         }
 
