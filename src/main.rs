@@ -169,10 +169,11 @@ fn main() {
                     let pixel = &mut frame[pixel_ind..pixel_ind + PIXEL_BYTES];
 
                     match gb_pixel {
-                        ppu::PixelShade::White => pixel.copy_from_slice(&[0xff, 0xff, 0xff, 0xff]),
-                        ppu::PixelShade::Light => pixel.copy_from_slice(&[0xaa, 0xaa, 0xaa, 0xff]),
-                        ppu::PixelShade::Medium => pixel.copy_from_slice(&[0x66, 0x66, 0x66, 0xff]),
-                        ppu::PixelShade::Dark => pixel.copy_from_slice(&[0x22, 0x22, 0x22, 0xff]),
+                        ppu::PixelShade::White => pixel.copy_from_slice(&WHITE_SHADE),
+                        ppu::PixelShade::Light => pixel.copy_from_slice(&LIGHT_SHADE),
+                        ppu::PixelShade::Medium => pixel.copy_from_slice(&MEDIUM_SHADE),
+                        ppu::PixelShade::Dark => pixel.copy_from_slice(&DARK_SHADE),
+                        ppu::PixelShade::Disabled => pixel.copy_from_slice(&DISABLED_SHADE),
                     }
                 }
 
