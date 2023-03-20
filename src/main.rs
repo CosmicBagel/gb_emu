@@ -25,10 +25,13 @@ const WINDOW_TITLE: &str = "gb_emu";
 
 fn init_emulator() -> (Cpu, Ppu) {
     let args: Vec<_> = env::args().collect();
-    if args.len() < 2 {
-        println!("Must specify rom file");
-        exit(1);
-    }
+    let filename = if args.len() < 2 {
+        //this is to make debugging easier to deal with
+        println!("Using default rom file");
+        DEFAULT_ROM
+    } else {
+        args[1].as_str()
+    };
 
     let filename = args[1].as_str();
     let mut cpu = Cpu::new();
