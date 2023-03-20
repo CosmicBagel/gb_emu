@@ -12,16 +12,9 @@ use winit::{
 use winit_input_helper::WinitInputHelper;
 
 mod addresses;
+mod constants;
 mod cpu;
 mod ppu;
-mod gui;
-
-const GB_WIDTH: u32 = 160;
-const GB_HEIGHT: u32 = 144;
-
-const WINDOW_WIDTH: u32 = 640;
-const WINDOW_HEIGHT: u32 = 480;
-const WINDOW_TITLE: &str = "gb_emu";
 
 fn init_emulator() -> (Cpu, Ppu) {
     let args: Vec<_> = env::args().collect();
