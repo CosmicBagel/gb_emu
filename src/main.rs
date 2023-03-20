@@ -75,7 +75,7 @@ fn main() {
     let mut cycle_count_since_last_yield = 0u32;
 
     let mut total_cycles = 0;
-    let mut is_gui_active = true;
+    let mut is_gui_active = IS_GUI_ACTIVE_DEFAULT;
 
     event_loop.run(move |event, _, control_flow| {
         //poll mode allows us to choose when to render out an image, as well as how long to sleep
