@@ -187,20 +187,21 @@ impl Cpu {
     pub fn do_step(&mut self) -> CpuStepResult {
         let opcode = self.mem[self.pc];
 
-        //execute instruction
-        let mut cycle_cost = self.primary_bytecode_table[opcode as usize](self, opcode);
-        self.update_timer(cycle_cost);
-
-        //temp hack: clear lower 4 bits of F (these are invalid bits)
-        self.f = self.f & 0xf0;
-
-        // todo, check interrupts BEFORE executing next instruction (so that PPU triggered
+        let mut cycle_cost = 0;
+        // check interrupts BEFORE executing next instruction (so that PPU triggered
         // interrupts happen as soon as possible)
         if self.check_interrupts() {
             // when true, the ISR (interrupt service handler) consumes 20 cycles
             cycle_cost += 20;
             self.update_timer(20);
         }
+
+        //execute instruction
+        cycle_cost += self.primary_bytecode_table[opcode as usize](self, opcode);
+        self.update_timer(cycle_cost);
+
+        //temp hack: clear lower 4 bits of F (these are invalid bits)
+        self.f = self.f & 0xf0;
 
         if self.ei_delay > 0 {
             self.ei_delay -= 1;
