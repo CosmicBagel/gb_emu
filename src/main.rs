@@ -98,6 +98,11 @@ fn main() {
 
             if let Some(size) = input.window_resized() {
                 //resize pixels and gui here
+                if let Err(err) = pixels.resize_surface(size.width, size.height) {
+                    println!("pixels.resize_surface() failed: {err}");
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
             }
 
             //todo: fetch joypad input here (keyboard or controller possibly) => update interrupts
