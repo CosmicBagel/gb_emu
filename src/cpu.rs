@@ -194,6 +194,13 @@ impl Cpu {
             // when true, the ISR (interrupt service handler) consumes 20 cycles
             cycle_cost += 20;
             self.update_timer(20);
+
+            // when an interrupt is started, we send the cycle_cost back for PPU
+            // to process these 20 dots, that way when the first instruction of 
+            // the interrupt runs, any state affected by ppu will be up to date
+            // IME will be disabled, so this the next instruction will always
+            // be run (ie another interrupt will not be started)
+            return CpuStepResult::CyclesExecuted(cycle_cost);
         }
 
         //execute instruction
