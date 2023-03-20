@@ -1,6 +1,7 @@
+use constants::*;
 use core::time;
 use cpu::{Cpu, CpuStepResult};
-use pixels::{Error, Pixels, SurfaceTexture};
+use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture};
 use ppu::Ppu;
 use std::{env, process::exit, thread};
 use winit::{
