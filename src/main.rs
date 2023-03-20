@@ -56,7 +56,10 @@ fn main() {
         let window_size = window.inner_size();
         let scale_factor = window.scale_factor() as f32;
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        let pixels = Pixels::new(GB_WIDTH, GB_HEIGHT, surface_texture).unwrap();
+        let pixels = PixelsBuilder::new(GB_WIDTH as u32, GB_HEIGHT as u32, surface_texture)
+            .enable_vsync(false)
+            .build()
+            .unwrap();
 
         pixels
     };
