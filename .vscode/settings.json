@@ -26,6 +26,7 @@
         "tima",
         "vblank",
         "VRAM",
+        "vsync",
         "wgpu",
         "winit"
     ]
