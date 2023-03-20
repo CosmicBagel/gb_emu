@@ -438,11 +438,19 @@ impl Cpu {
 
     //used by cpu instructions, other emulator code just accesses directly
     fn read_mem(&self, address: usize) -> u8 {
-        // match address {
-        //     0x4424 => println!("reading {:2x} from {:4x}", self.mem[address], address),
-        //     _ => {},
-        // };
-        self.mem[address]
+        match address {
+            FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {
+                //technically reading from the FORBIDDEN ADDRESS range is supposed to corrupt
+                //the OAM memory, but i'd rather not emulate that
+                let ppu_mode = self.mem[STAT_ADDRESS] & 0b0000_0011;
+                if ppu_mode == 0b10 || ppu_mode == 0b11 {
+                    0xff
+                } else {
+                    0x00
+                }
+            }
+            _ => self.mem[address],
+        }
     }
 
     //used by cpu instructions, other emulator code just accesses directly
@@ -450,6 +458,14 @@ impl Cpu {
         match address {
             // 0x4424 => println!("writing {:2x} to {:4x}", value, address),
             DIV_ADDRESS => self.mem[DIV_ADDRESS] = 0x00,
+            LY_ADDRESS => {} //block LY_ADDRESS write, only ppu can write to this
+            FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {} //forbidden memory is forbidden
+            STAT_ADDRESS => {
+                //bottom three bits (0-2) are read only
+                let current_lower_bits = self.mem[address] & 0b0000_0111;
+                let filtered_value = (value & 0b1111_1000) | current_lower_bits;
+                self.mem[address] = filtered_value;
+            }
             OAM_DMA_ADDRESS => {
                 //todo impl OAM DMA https://gbdev.io/pandocs/OAM_DMA_Transfer.html
                 //in cpu
