@@ -203,6 +203,7 @@ impl Cpu {
         //temp hack: clear lower 4 bits of F (these are invalid bits)
         self.f = self.f & 0xf0;
 
+        //IME enable quirk, always enables 1 instruction AFTER it is toggled on
         if self.ei_delay > 0 {
             self.ei_delay -= 1;
             if self.ei_delay == 0 {
