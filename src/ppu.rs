@@ -452,18 +452,9 @@ impl Ppu {
         //update box pos
         self.box_x = (self.box_x as i32 + self.box_vel_x) as usize;
         self.box_y = (self.box_y as i32 + self.box_vel_y) as usize;
-        
     }
 
-    // pub fn render_to_screen(&mut self) {
-        // will take another param that will allow drawing to screen (pixels lib)
-        //might turn this into a 'get image' func and have pixels lib
-        //interfaced with outside of ppu
-
-        // todo!()
-    // }
-
-    pub fn get_pixels(&self) -> [PixelShade; 160 * 144] {
+    pub fn get_pixels(&self) -> [PixelShade; GB_WIDTH * GB_HEIGHT] {
         self.pixels
     }
 
