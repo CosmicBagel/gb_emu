@@ -93,6 +93,11 @@ pub struct Cpu {
     dr_log_buf_writer: Option<BufWriter<File>>,
     instruction_count: u32,
     last_pc: usize,
+
+    // special case states
+    is_halted: bool,
+    is_stopped: bool,
+    is_oam_dma_active: bool,
 }
 
 impl Cpu {
@@ -130,6 +135,10 @@ impl Cpu {
             dr_log_buf_writer: buf_writer,
             instruction_count: 0,
             last_pc: 0x0000,
+
+            is_halted: false,
+            is_stopped: false,
+            is_oam_dma_active: false,
         }
     }
 
@@ -190,38 +199,47 @@ impl Cpu {
         let mut cycle_cost = 0;
         // check interrupts BEFORE executing next instruction (so that PPU triggered
         // interrupts happen as soon as possible)
-        if self.check_interrupts() {
-            // when true, the ISR (interrupt service handler) consumes 20 cycles
-            cycle_cost += 20;
-            self.update_timer(20);
+        if let Some((address, flag_mask)) = self.check_interrupts() {
+            // any interrupt un-halts the cpu, even if IME is not on
+            self.is_halted = false;
+            if self.interrupt_master_enable {
+                self.interrupt_service_handler(address, flag_mask);
+                // when true, the ISR (interrupt service handler) consumes 20 cycles
+                cycle_cost += 20;
+                self.update_timer(20);
 
-            // when an interrupt is started, we send the cycle_cost back for PPU
-            // to process these 20 dots, that way when the first instruction of 
-            // the interrupt runs, any state affected by ppu will be up to date
-            // IME will be disabled, so this the next instruction will always
-            // be run (ie another interrupt will not be started)
-            return CpuStepResult::CyclesExecuted(cycle_cost);
+                // when an interrupt is started, we send the cycle_cost back for PPU
+                // to process these 20 dots, that way when the first instruction of
+                // the interrupt runs, any state affected by ppu will be up to date
+                // IME will be disabled, so this the next instruction will always
+                // be run (ie another interrupt will not be started)
+                return CpuStepResult::CyclesExecuted(cycle_cost);
+            }
         }
 
         //execute instruction
-        cycle_cost += self.primary_bytecode_table[opcode as usize](self, opcode);
-        self.update_timer(cycle_cost);
+        if self.is_halted {
+            return CpuStepResult::CyclesExecuted(CPU_CYCLES_PER_HALTED_STEP);
+        } else {
+            cycle_cost += self.primary_bytecode_table[opcode as usize](self, opcode);
+            self.update_timer(cycle_cost);
 
-        //temp hack: clear lower 4 bits of F (these are invalid bits)
-        self.f = self.f & 0xf0;
+            //temp hack: clear lower 4 bits of F (these are invalid bits)
+            self.f = self.f & 0xf0;
 
-        //IME enable quirk, always enables 1 instruction AFTER it is toggled on
-        if self.ei_delay > 0 {
-            self.ei_delay -= 1;
-            if self.ei_delay == 0 {
-                self.interrupt_master_enable = true;
+            //IME enable quirk, always enables 1 instruction AFTER it is toggled on
+            if self.ei_delay > 0 {
+                self.ei_delay -= 1;
+                if self.ei_delay == 0 {
+                    self.interrupt_master_enable = true;
+                }
             }
-        }
-        self.dr_log_line();
-        self.instruction_count += 1;
-        self.last_pc = self.pc;
+            self.dr_log_line();
+            self.instruction_count += 1;
+            self.last_pc = self.pc;
 
-        return CpuStepResult::CyclesExecuted(cycle_cost);
+            return CpuStepResult::CyclesExecuted(cycle_cost);
+        }
     }
 
     fn dr_log_line_initial(&mut self) {
@@ -328,7 +346,7 @@ impl Cpu {
         }
     }
 
-    fn check_interrupts(&mut self) -> bool {
+    fn check_interrupts(&mut self) -> Option<(InterruptAddresses, InterruptFlags)> {
         //IME, IE, IF
         // IME = master interrupt enable flag (write only), can only be modified by
         //      EI instruction (enable interrupts), DI instruction (disable interrupts),
@@ -366,63 +384,45 @@ impl Cpu {
         // default interrupts do not "nest". However user can call IE which will
         // enabled interrupts while the handler is running, allowing for a nested
         // interrupt to occur
-        if self.interrupt_master_enable {
-            let interrupt_enable = self.mem[INTERRUPT_ENABLE_ADDRESS];
-            let interrupt_flag = self.mem[INTERRUPT_FLAG_ADDRESS];
+        let interrupt_enable = self.mem[INTERRUPT_ENABLE_ADDRESS];
+        let interrupt_flag = self.mem[INTERRUPT_FLAG_ADDRESS];
 
-            let interrupt_pending = interrupt_enable & interrupt_flag;
+        let interrupt_pending = interrupt_enable & interrupt_flag;
 
-            // early return after each interrupt, can only run one interrupt at
-            // at time
-            // this enforces a priority order as well
-            if InterruptFlags::VBlank as u8 & interrupt_pending != 0 {
-                self.interrupt_service_handler(
-                    InterruptAddresses::VBlank as u16,
-                    InterruptFlags::VBlank as u8,
-                );
-                return true;
-            }
-
-            if InterruptFlags::LcdStat as u8 & interrupt_pending != 0 {
-                self.interrupt_service_handler(
-                    InterruptAddresses::LcdStat as u16,
-                    InterruptFlags::LcdStat as u8,
-                );
-                return true;
-            }
-
-            if InterruptFlags::Timer as u8 & interrupt_pending != 0 {
-                self.interrupt_service_handler(
-                    InterruptAddresses::Timer as u16,
-                    InterruptFlags::Timer as u8,
-                );
-                return true;
-            }
-
-            if InterruptFlags::Serial as u8 & interrupt_pending != 0 {
-                self.interrupt_service_handler(
-                    InterruptAddresses::Serial as u16,
-                    InterruptFlags::Serial as u8,
-                );
-                return true;
-            }
-
-            if InterruptFlags::Joypad as u8 & interrupt_pending != 0 {
-                self.interrupt_service_handler(
-                    InterruptAddresses::Joypad as u16,
-                    InterruptFlags::Joypad as u8,
-                );
-                return true;
-            }
+        // early return after each interrupt, can only run one interrupt at
+        // at time
+        // this enforces a priority order as well
+        if InterruptFlags::VBlank as u8 & interrupt_pending != 0 {
+            return Some((InterruptAddresses::VBlank, InterruptFlags::VBlank));
         }
-        false
+
+        if InterruptFlags::LcdStat as u8 & interrupt_pending != 0 {
+            return Some((InterruptAddresses::LcdStat, InterruptFlags::LcdStat));
+        }
+
+        if InterruptFlags::Timer as u8 & interrupt_pending != 0 {
+            return Some((InterruptAddresses::Timer, InterruptFlags::Timer));
+        }
+
+        if InterruptFlags::Serial as u8 & interrupt_pending != 0 {
+            return Some((InterruptAddresses::Serial, InterruptFlags::Serial));
+        }
+
+        if InterruptFlags::Joypad as u8 & interrupt_pending != 0 {
+            return Some((InterruptAddresses::Joypad, InterruptFlags::Joypad));
+        }
+        None
     }
 
-    fn interrupt_service_handler(&mut self, address: u16, flag_mask: u8) {
+    fn interrupt_service_handler(
+        &mut self,
+        address: InterruptAddresses,
+        flag_mask: InterruptFlags,
+    ) {
         //0 out the interrupt flag bit
-        self.mem[INTERRUPT_FLAG_ADDRESS] ^= flag_mask;
+        self.mem[INTERRUPT_FLAG_ADDRESS] ^= flag_mask as u8;
         self.interrupt_master_enable = false;
-        self.helper_call(address, self.pc);
+        self.helper_call(address as u16, self.pc);
         //needs to wait 20 cycles
     }
 
@@ -819,6 +819,8 @@ PC: 0x{:04x}",
 
         table[0xf3] = Cpu::disable_interrupt;
         table[0xfb] = Cpu::enable_interrupt;
+
+        table[0x76] = Cpu::halt;
 
         table
     }
@@ -2895,5 +2897,11 @@ PC: 0x{:04x}",
         } else {
             8
         }
+    }
+
+    //0x76
+    fn halt(&mut self, _: u8) -> CycleCount {
+        self.is_halted = true;
+        4
     }
 }

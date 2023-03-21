@@ -19,3 +19,5 @@ pub const DARK_SHADE: [u8; 4] = [0x22, 0x22, 0x22, 0xff];
 pub const DISABLED_SHADE: [u8; 4] = [0xff, 0x00, 0x00, 0xff];
 
 pub const IS_GUI_ACTIVE_DEFAULT: bool = true;
+
+pub const CPU_CYCLES_PER_HALTED_STEP: u32 = 4;
