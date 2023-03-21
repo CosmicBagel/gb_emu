@@ -95,7 +95,9 @@ pub struct Cpu {
     last_pc: usize,
 
     // special case states
+    ///halt = pause cpu & timer until any interrupt occurs (ppu keeps running)
     is_halted: bool,
+    ///stop = everything stops (ppu, cpu, timers) until system is reset (memory state is preserved)
     is_stopped: bool,
     is_oam_dma_active: bool,
 }
@@ -238,7 +240,11 @@ impl Cpu {
             self.instruction_count += 1;
             self.last_pc = self.pc;
 
-            return CpuStepResult::CyclesExecuted(cycle_cost);
+            if self.is_stopped {
+                return CpuStepResult::Stopped;
+            } else {
+                return CpuStepResult::CyclesExecuted(cycle_cost);
+            }
         }
     }
 
@@ -821,6 +827,7 @@ PC: 0x{:04x}",
         table[0xfb] = Cpu::enable_interrupt;
 
         table[0x76] = Cpu::halt;
+        table[0x10] = Cpu::stop;
 
         table
     }
@@ -2902,6 +2909,16 @@ PC: 0x{:04x}",
     //0x76
     fn halt(&mut self, _: u8) -> CycleCount {
         self.is_halted = true;
+        4
+    }
+
+    //0x10 0x00
+    fn stop (&mut self, _: u8) -> CycleCount {
+        //the full instruction is 0x10_00, we need to read the next opcode for this
+        if self.mem[self.pc + 1] == 0x00 {
+            self.is_stopped = true;
+        }
+        //if the full instruction isn't present, we do nothing and move on
         4
     }
 }
