@@ -51,3 +51,6 @@ pub const OAM_TABLE_ADDRESS: usize = 0xfe00; //Sprite table, max 40 sprites of 4
                                              Bit3   Tile VRAM-Bank  **CGB Mode Only**     (0=Bank 0, 1=Bank 1)
                                              Bit2-0 Palette number  **CGB Mode Only**     (OBP0-7)
                                          */
+
+pub const HIGH_RAM_START_ADDRESS: usize = 0xff80;
+pub const HIGH_RAM_END_ADDRESS: usize = 0xfffe;

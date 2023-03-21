@@ -99,7 +99,12 @@ pub struct Cpu {
     is_halted: bool,
     ///stop = everything stops (ppu, cpu, timers) until system is reset (memory state is preserved)
     is_stopped: bool,
-    is_oam_dma_active: bool,
+    /// OAM DMA is a fast way to copy data to OAM table, (faster than memcpy). While running, this
+    /// blocks all ram except for 0xff80-0xfffe (including ROM), not even instructions can be read
+    /// outside this space [needs to be public for ppu]
+    pub is_oam_dma_active: bool,
+    /// used to track the 160 cycles oam dma runs for
+    dma_active_cycle_counter: u32,
 }
 
 impl Cpu {
@@ -141,6 +146,7 @@ impl Cpu {
             is_halted: false,
             is_stopped: false,
             is_oam_dma_active: false,
+            dma_active_cycle_counter: 0,
         }
     }
 
@@ -239,6 +245,21 @@ impl Cpu {
             self.dr_log_line();
             self.instruction_count += 1;
             self.last_pc = self.pc;
+
+            if self.is_oam_dma_active {
+                self.dma_active_cycle_counter += cycle_cost;
+                if self.dma_active_cycle_counter > OAM_DMA_CYCLES {
+                    // we're using > here because we want to toggle off once we've exceeded the cycles
+                    // if we stop once we've reached _exactly_ the cycle count, the PPU will process
+                    // dots incorrectly (as if OAM DMA wasn't running during those dots).
+                    // instead we want the following cycles to count
+                    // this does mean that sometimes the PPU might process a few dots incorrectly as if
+                    // OAM DMA is running, but it is more likely that we will reach 160 exactly due to
+                    // the cost of most instructions, additionally the spin wait loops used while waiting
+                    // for OAM DMA to finish are usually tuned to be exactly 160 cycles before returning
+                    self.is_oam_dma_active = false;
+                }
+            }
 
             if self.is_stopped {
                 return CpuStepResult::Stopped;
@@ -447,6 +468,15 @@ impl Cpu {
 
     //used by cpu instructions, other emulator code just accesses directly
     fn read_mem(&self, address: usize) -> u8 {
+        if self.is_oam_dma_active {
+            if address >= HIGH_RAM_START_ADDRESS && address <= HIGH_RAM_END_ADDRESS {
+                return self.mem[address];
+            } else {
+                println!("warning: program attempted to read invalid memory during OAM DMA");
+                return 0x00;
+            }
+        }
+
         match address {
             FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {
                 //technically reading from the FORBIDDEN ADDRESS range is supposed to corrupt
@@ -464,6 +494,16 @@ impl Cpu {
 
     //used by cpu instructions, other emulator code just accesses directly
     fn write_mem(&mut self, address: usize, value: u8) {
+        if self.is_oam_dma_active {
+            if address >= HIGH_RAM_START_ADDRESS && address <= HIGH_RAM_END_ADDRESS {
+                self.mem[address] = value;
+                return
+            } else {
+                println!("warning: program attempted to write to invalid memory during OAM DMA");
+                return;
+            }
+        }
+
         match address {
             // 0x4424 => println!("writing {:2x} to {:4x}", value, address),
             DIV_ADDRESS => self.mem[DIV_ADDRESS] = 0x00,
@@ -476,16 +516,30 @@ impl Cpu {
                 self.mem[address] = filtered_value;
             }
             OAM_DMA_ADDRESS => {
-                //todo impl OAM DMA https://gbdev.io/pandocs/OAM_DMA_Transfer.html
-                //in cpu
-                //160 cycles, 40 oam entries
-                //do one oam entry per step (assume 4 cycles per sprite)
-                //has to put the cpu into a 'dma mode' where we just
-                //copy sprites for 40 'steps' totalling 160 cycles
-                //need to impl modes anyways for halt/stop
-                todo!("OAM DMA");
+                self.oam_dma(value);
             }
             _ => self.mem[address] = value,
+        }
+    }
+
+    fn oam_dma(&mut self, start_address_high_byte: u8) {
+        //Source:      $XX00-$XX9F   ;XX = $00 to $DF
+        //Destination: $FE00-$FE9F
+
+        if start_address_high_byte > 0xdf {
+            // invalid start address, do not execute oam dma
+            println!("warning: program attempted invalid oam dma (invalid start address)");
+            return;
+        }
+
+        self.is_oam_dma_active = true;
+        self.dma_active_cycle_counter = 0;
+
+        let start_address = (start_address_high_byte as usize) << 8;
+        // when oma dma is started, a base source address is stored, 0xZZ00, where the
+        // start address is the ZZ byte, the copy reads from 0xZZ00 - 0xZZ9f
+        for offset in 0x00..=0x9f {
+            self.mem[0xfe00 + offset] = self.mem[start_address + offset];
         }
     }
 
@@ -2913,7 +2967,7 @@ PC: 0x{:04x}",
     }
 
     //0x10 0x00
-    fn stop (&mut self, _: u8) -> CycleCount {
+    fn stop(&mut self, _: u8) -> CycleCount {
         //the full instruction is 0x10_00, we need to read the next opcode for this
         if self.mem[self.pc + 1] == 0x00 {
             self.is_stopped = true;

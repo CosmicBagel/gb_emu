@@ -44,6 +44,7 @@ pub struct Ppu {
     mode_func: PpuModeFunc,
     current_line_sprites: Vec<OAM>,
     lcdc_last_enabled: bool,
+    current_mode_oam_dma: bool,
 
     //temp for test
     box_x: usize,
@@ -133,6 +134,7 @@ impl Ppu {
             mode_func: Ppu::handle_mode0_hblank,
             current_line_sprites: vec![],
             lcdc_last_enabled: false,
+            current_mode_oam_dma: false,
 
             //temp for test
             box_x: 0,
@@ -173,6 +175,10 @@ impl Ppu {
         //tracking the state of lcd enabled for vblank
         self.lcdc_last_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
 
+        if !self.current_mode_oam_dma && cpu.is_oam_dma_active {
+            self.current_mode_oam_dma = true;
+        }
+
         result
     }
 
@@ -182,6 +188,7 @@ impl Ppu {
         Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::HBlank);
         Ppu::stat_flag_interrupt(cpu, StatInterrupt::HBlank);
         self.current_mode_counter = 0;
+        self.current_mode_oam_dma = false;
         (cycles, PpuStepResult::NoAction)
     }
 
@@ -226,6 +233,7 @@ impl Ppu {
         Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::VBlank);
         Ppu::stat_flag_interrupt(cpu, StatInterrupt::VBlank);
         self.current_mode_counter = 0;
+        self.current_mode_oam_dma = false;
 
         let lcd_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
         if !lcd_enabled {
@@ -313,6 +321,7 @@ impl Ppu {
         Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::OAMSearch);
         Ppu::stat_flag_interrupt(cpu, StatInterrupt::OAMSearch);
         self.current_mode_counter = 0;
+        self.current_mode_oam_dma = false;
 
         (cycles, PpuStepResult::NoAction)
     }
@@ -324,51 +333,55 @@ impl Ppu {
         // Accessible v-mem: VRAM, CGB palettes
         let target = 80;
         let mut remainder = 0;
+
         self.current_mode_counter += cycles;
         if self.current_mode_counter >= target {
             remainder = self.current_mode_counter - target;
             self.debug_mode2_cycles += cycles - remainder;
             self.mode_func = Ppu::start_mode3_picture_gen;
 
-            //mode 2's actual job: see what sprites are on this LY
-            //10 sprites max, sorted in order of greatest x to least x
-            //  so that the sprite with least x value will draw above sprites with greater x values
             self.current_line_sprites.clear();
-            const BIG_SPRITE_SIZE: u8 = 16;
-            const NORMAL_SPRITE_SIZE: u8 = 8;
-            let sprite_size = if self.lcdc_get_obj_size(cpu) {
-                BIG_SPRITE_SIZE
-            } else {
-                NORMAL_SPRITE_SIZE
-            };
-
-            //determine sprites effecting line
-            let mut offset = 0x00;
-            let ly = cpu.read_hw_reg(LY_ADDRESS);
-            for _ in 0..OAM_TABLE_SIZE {
-                const OAM_BYTE_SIZE: usize = 4;
-                let oam = OAM {
-                    y_position: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset),
-                    x_position: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 1),
-                    tile_index: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 2),
-                    attributes: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 3),
+            // if oam dma ran at all during this mode, skip finding any sprites
+            if !self.current_mode_oam_dma {
+                //mode 2's actual job: see what sprites are on this LY
+                //10 sprites max, sorted in order of greatest x to least x
+                //  so that the sprite with least x value will draw above sprites with greater x values
+                const BIG_SPRITE_SIZE: u8 = 16;
+                const NORMAL_SPRITE_SIZE: u8 = 8;
+                let sprite_size = if self.lcdc_get_obj_size(cpu) {
+                    BIG_SPRITE_SIZE
+                } else {
+                    NORMAL_SPRITE_SIZE
                 };
 
-                if ly >= oam.y_position && ly - oam.y_position < sprite_size {
-                    // on our line
-                    self.current_line_sprites.push(oam);
+                //determine sprites effecting line
+                let mut offset = 0x00;
+                let ly = cpu.read_hw_reg(LY_ADDRESS);
+                for _ in 0..OAM_TABLE_SIZE {
+                    const OAM_BYTE_SIZE: usize = 4;
+                    let oam = OAM {
+                        y_position: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset),
+                        x_position: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 1),
+                        tile_index: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 2),
+                        attributes: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 3),
+                    };
+
+                    if ly >= oam.y_position && ly - oam.y_position < sprite_size {
+                        // on our line
+                        self.current_line_sprites.push(oam);
+                    }
+
+                    offset += OAM_BYTE_SIZE;
                 }
 
-                offset += OAM_BYTE_SIZE;
+                // sort by x postilion least to greatest (sort the sprites left to right)
+                self.current_line_sprites
+                    .sort_by(|a, b| b.x_position.cmp(&a.x_position));
+                // only 10 sprites per line (truncate sprites on line after sprite 10 left to right)
+                self.current_line_sprites.truncate(10);
+                // draw sprites will be drawn right to left
+                self.current_line_sprites.reverse();
             }
-
-            // sort by x postilion least to greatest (sort the sprites left to right)
-            self.current_line_sprites
-                .sort_by(|a, b| b.x_position.cmp(&a.x_position));
-            // only 10 sprites per line (truncate sprites on line after sprite 10 left to right)
-            self.current_line_sprites.truncate(10);
-            // draw sprites will be drawn right to left
-            self.current_line_sprites.reverse();
         } else {
             self.debug_mode2_cycles += cycles;
         }
@@ -380,6 +393,7 @@ impl Ppu {
         self.mode_func = Ppu::handle_mode3_picture_gen;
         Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::DataToLCD);
         self.current_mode_counter = 0;
+        self.current_mode_oam_dma = false;
 
         (cycles, PpuStepResult::NoAction)
     }
@@ -443,6 +457,11 @@ impl Ppu {
 
             self.last_mode3_duration = target;
             self.mode_func = Ppu::start_mode0_hblank;
+
+            // if oam dma ran at all during this line, don't draw __SPRITE__ pixels to it
+            if !self.current_mode_oam_dma {
+                // todo draw line, but not sprites idk
+            }
         } else {
             self.debug_mode3_cycles += cycles;
         }

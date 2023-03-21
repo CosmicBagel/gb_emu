@@ -21,3 +21,4 @@ pub const DISABLED_SHADE: [u8; 4] = [0xff, 0x00, 0x00, 0xff];
 pub const IS_GUI_ACTIVE_DEFAULT: bool = true;
 
 pub const CPU_CYCLES_PER_HALTED_STEP: u32 = 4;
+pub const OAM_DMA_CYCLES: u32 = 160;
