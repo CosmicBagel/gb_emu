@@ -50,6 +50,12 @@ pub struct Ppu {
     box_y: usize,
     box_vel_x: i32,
     box_vel_y: i32,
+
+    //debug
+    debug_mode0_cycles: u32,
+    debug_mode1_cycles: u32,
+    debug_mode2_cycles: u32,
+    debug_mode3_cycles: u32,
 }
 
 struct OAM {
@@ -133,6 +139,11 @@ impl Ppu {
             box_y: 0,
             box_vel_x: 1,
             box_vel_y: 1,
+
+            debug_mode0_cycles: 0,
+            debug_mode1_cycles: 0,
+            debug_mode2_cycles: 0,
+            debug_mode3_cycles: 0,
         }
     }
 
@@ -188,17 +199,20 @@ impl Ppu {
         self.current_mode_counter += cycles;
         if self.current_mode_counter >= target {
             remainder = self.current_mode_counter - target;
+            self.debug_mode0_cycles += cycles - remainder;
 
-            let ly = cpu.read_hw_reg(LY_ADDRESS);
-            cpu.write_hw_reg(LY_ADDRESS, ly + 1);
+            let ly_next = cpu.read_hw_reg(LY_ADDRESS) + 1;
+            cpu.write_hw_reg(LY_ADDRESS, ly_next);
 
-            if ly >= GB_HEIGHT as u8 {
+            if ly_next >= GB_HEIGHT as u8 {
                 //end of 'visible' scanlines, we switch to vblank for 10 invisible scanlines
                 self.mode_func = Ppu::start_mode1_vblank;
             } else {
                 //next scanline is visible
                 self.mode_func = Ppu::start_mode2_object_search;
             }
+        } else {
+            self.debug_mode0_cycles += cycles;
         }
 
         (remainder, PpuStepResult::NoAction)
@@ -212,7 +226,6 @@ impl Ppu {
         Ppu::stat_set_mode_flag(cpu, LcdStatModeFlag::VBlank);
         Ppu::stat_flag_interrupt(cpu, StatInterrupt::VBlank);
         self.current_mode_counter = 0;
-
 
         let lcd_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
         if !lcd_enabled {
@@ -257,17 +270,36 @@ impl Ppu {
         // if count > target and LV <= 153, increment LY
         if self.current_mode_counter + cycles >= target {
             left_over_cycles = self.current_mode_counter + cycles - target;
-            let ly = cpu.read_hw_reg(LY_ADDRESS);
-            if ly < (GB_HEIGHT + INVISIBLE_VBLANK_LINES) as u8 {
-                cpu.write_hw_reg(LY_ADDRESS, ly + 1);
+            self.debug_mode1_cycles += cycles - left_over_cycles;
+
+            let ly_next = cpu.read_hw_reg(LY_ADDRESS) + 1;
+            if ly_next < (GB_HEIGHT + INVISIBLE_VBLANK_LINES) as u8 {
+                cpu.write_hw_reg(LY_ADDRESS, ly_next);
                 self.current_mode_counter = 0;
             } else {
                 //start over at top of the screen
                 cpu.write_hw_reg(LY_ADDRESS, 0);
                 self.mode_func = Ppu::start_mode2_object_search;
+
+                // println!(
+                //     "0: {} (~{} per line)\n1: {}\n2: {} (~{} per line)\n3: {} (~{} per line)\nframe: {}",
+                //     self.mode0_cycles,
+                //     self.mode0_cycles / GB_HEIGHT as u32,
+                //     self.mode1_cycles,
+                //     self.mode2_cycles,
+                //     self.mode2_cycles / GB_HEIGHT as u32,
+                //     self.mode3_cycles,
+                //     self.mode3_cycles / GB_HEIGHT as u32,
+                //     self.mode0_cycles + self.mode1_cycles + self.mode2_cycles + self.mode3_cycles
+                // );
+                self.debug_mode0_cycles = 0;
+                self.debug_mode1_cycles = 0;
+                self.debug_mode2_cycles = 0;
+                self.debug_mode3_cycles = 0;
             }
         } else {
             self.current_mode_counter += cycles;
+            self.debug_mode1_cycles += cycles;
         }
 
         (left_over_cycles, PpuStepResult::NoAction)
@@ -295,6 +327,7 @@ impl Ppu {
         self.current_mode_counter += cycles;
         if self.current_mode_counter >= target {
             remainder = self.current_mode_counter - target;
+            self.debug_mode2_cycles += cycles - remainder;
             self.mode_func = Ppu::start_mode3_picture_gen;
 
             //mode 2's actual job: see what sprites are on this LY
@@ -336,6 +369,8 @@ impl Ppu {
             self.current_line_sprites.truncate(10);
             // draw sprites will be drawn right to left
             self.current_line_sprites.reverse();
+        } else {
+            self.debug_mode2_cycles += cycles;
         }
         (remainder, PpuStepResult::NoAction)
     }
@@ -404,7 +439,12 @@ impl Ppu {
         self.current_mode_counter += cycles;
         if self.current_mode_counter >= target {
             remainder = self.current_mode_counter - target;
+            self.debug_mode3_cycles += cycles - remainder;
+
+            self.last_mode3_duration = target;
             self.mode_func = Ppu::start_mode0_hblank;
+        } else {
+            self.debug_mode3_cycles += cycles;
         }
 
         (remainder, PpuStepResult::NoAction)
