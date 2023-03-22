@@ -497,7 +497,7 @@ impl Cpu {
         if self.is_oam_dma_active {
             if address >= HIGH_RAM_START_ADDRESS && address <= HIGH_RAM_END_ADDRESS {
                 self.mem[address] = value;
-                return
+                return;
             } else {
                 println!("warning: program attempted to write to invalid memory during OAM DMA");
                 return;
