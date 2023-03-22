@@ -471,8 +471,11 @@ impl Ppu {
 
     fn render_bg_line(&mut self, cpu: &mut Cpu, ly: usize) -> [PixelShade; GB_WIDTH] {
         // do background
-        let scx = cpu.read_hw_reg(SCX_ADDRESS) as usize;
-        let scy = cpu.read_hw_reg(SCY_ADDRESS) as usize;
+        // let scx = cpu.read_hw_reg(SCX_ADDRESS) as usize;
+        // let scy = cpu.read_hw_reg(SCY_ADDRESS) as usize;
+
+        let scx = 0;
+        let scy = 0;
 
         let mut bg_line = [PixelShade::White; GB_WIDTH];
 
