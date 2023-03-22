@@ -471,21 +471,18 @@ impl Ppu {
 
     fn render_bg_line(&mut self, cpu: &mut Cpu, ly: usize) -> [PixelShade; GB_WIDTH] {
         // do background
-        // let scx = cpu.read_hw_reg(SCX_ADDRESS) as usize;
-        // let scy = cpu.read_hw_reg(SCY_ADDRESS) as usize;
-
-        let scx = 0;
-        let scy = 0;
+        let scx = cpu.read_hw_reg(SCX_ADDRESS) as usize;
+        let scy = cpu.read_hw_reg(SCY_ADDRESS) as usize;
 
         let mut bg_line = [PixelShade::White; GB_WIDTH];
 
-        let tile_map_y: usize = (scy + ly) / TILE_SIZE;
+        let tile_map_y: usize = ((scy + ly) & 0xff) / TILE_SIZE;
         let tile_y_offset: usize = (scy + ly) % TILE_SIZE;
 
         let mut x_pos = 0;
         while x_pos < GB_WIDTH {
             //determine tile at pixel
-            let tile_map_x = (scx + x_pos) / TILE_SIZE;
+            let tile_map_x = ((scx + x_pos) / TILE_SIZE) & 0x1f;
             let tile_x_offset = (scx + x_pos) % TILE_SIZE;
             let tile_x_pixel_count = TILE_SIZE - tile_x_offset;
             let tile_id = self.bg_tile_map_fetch(cpu, tile_map_y, tile_map_x);
