@@ -1,4 +1,4 @@
-pub const DEFAULT_ROM: &str = "08-misc instrs.gb";
+pub const DEFAULT_ROM: &str = "02-interrupts.gb";
 
 pub const DR_GB_LOGGING_ENABLED: bool = false;
 
