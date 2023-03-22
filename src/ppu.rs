@@ -446,10 +446,7 @@ impl Ppu {
             let mut line = [PixelShade::White; GB_WIDTH];
 
             if self.lcdc_get_bg_and_window_enable(cpu) {
-                let mut bg_line = self.render_bg_line(cpu, ly);
-                if ly % TILE_SIZE == 0 {
-                    bg_line = [PixelShade::Dark; GB_WIDTH];
-                }
+                let bg_line = self.render_bg_line(cpu, ly);
 
                 //temp copy bg_line to line
                 line = bg_line;
