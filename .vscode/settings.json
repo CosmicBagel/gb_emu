@@ -8,6 +8,7 @@
         "gameboy",
         "hblank",
         "hdma",
+        "horz",
         "instrs",
         "Joypad",
         "lcdc",
