@@ -46,12 +46,6 @@ pub struct Ppu {
     lcdc_last_enabled: bool,
     current_mode_oam_dma: bool,
 
-    //temp for test
-    box_x: usize,
-    box_y: usize,
-    box_vel_x: i32,
-    box_vel_y: i32,
-
     //debug
     debug_mode0_cycles: u32,
     debug_mode1_cycles: u32,
@@ -135,12 +129,6 @@ impl Ppu {
             current_line_sprites: vec![],
             lcdc_last_enabled: false,
             current_mode_oam_dma: false,
-
-            //temp for test
-            box_x: 0,
-            box_y: 0,
-            box_vel_x: 1,
-            box_vel_y: 1,
 
             debug_mode0_cycles: 0,
             debug_mode1_cycles: 0,
@@ -238,11 +226,7 @@ impl Ppu {
         let lcd_enabled = self.lcdc_get_lcd_ppu_enabled(cpu);
         if !lcd_enabled {
             self.pixels = [PixelShade::Disabled; GB_WIDTH * GB_HEIGHT];
-        } else {
-            //temp for test
-            self.update_test_image();
         }
-
         (cycles, PpuStepResult::Draw)
     }
 
@@ -458,10 +442,30 @@ impl Ppu {
             self.last_mode3_duration = target;
             self.mode_func = Ppu::start_mode0_hblank;
 
+            let ly = cpu.read_hw_reg(LY_ADDRESS) as usize;
+            let mut line = [PixelShade::White; GB_WIDTH];
+
+            if self.lcdc_get_bg_and_window_enable(cpu) {
+                let mut bg_line = self.determine_bg_line(cpu, ly);
+                if ly % 8 == 0 {
+                    bg_line = [PixelShade::Dark; GB_WIDTH];
+                }
+
+                //temp copy bg_line to line
+                line = bg_line;
+            }
+
             // if oam dma ran at all during this line, don't draw __SPRITE__ pixels to it
             if !self.current_mode_oam_dma {
                 // todo draw line, but not sprites idk
             }
+
+            //copy line to self.pixels for ly
+            let base = ly * GB_WIDTH;
+            for ind in 0..line.len() {
+                self.pixels[base + ind] = line[ind];
+            }
+
         } else {
             self.debug_mode3_cycles += cycles;
         }
@@ -469,51 +473,132 @@ impl Ppu {
         (remainder, PpuStepResult::NoAction)
     }
 
-    fn update_test_image(&mut self) {
-        const BOX_SIZE: usize = 8;
+    fn determine_bg_line(&mut self, cpu: &mut Cpu, ly: usize) -> [PixelShade; GB_WIDTH] {
+        // do background
+        let scx = cpu.read_hw_reg(SCX_ADDRESS) as usize;
+        let scy = cpu.read_hw_reg(SCY_ADDRESS) as usize;
 
-        // let w = PixelShade::White;
-        // let l = PixelShade::Light;
-        // let m = PixelShade::Medium;
-        // let d = PixelShade::Dark;
+        let mut bg_line = [PixelShade::White; GB_WIDTH];
 
-        // draw some gradient-ish lines
-        let mut shade = PixelShade::White;
-        for y in 0..GB_HEIGHT as usize {
-            if y % 8 == 0 {
-                shade = PixelShade::from((shade as u8 + 1) % 3);
+        let tile_map_y: usize = (scy + ly) / 8;
+        let tile_y_offset: usize = (scy + ly) % 8;
+
+        let mut x_pos = 0;
+        while x_pos < GB_WIDTH {
+            //determine tile at pixel
+            let tile_map_x = (scx + x_pos) / 8;
+            let tile_x_offset = (scx + x_pos) % 8;
+            let tile_x_pixel_count = 8 - tile_x_offset;
+            let tile_id = self.bg_tile_map_fetch(cpu, tile_map_y, tile_map_x);
+
+            let tile = self.bg_tile_fetch(cpu, tile_id as usize);
+            let start = (tile_y_offset * 8) + tile_x_offset;
+            let end = start + tile_x_pixel_count;
+            let tile_slice = &tile[start as usize..end as usize];
+
+            if x_pos + tile_x_pixel_count < GB_WIDTH {
+                //copy tile line to bg line
+                for ind in 0..tile_x_pixel_count {
+                    bg_line[x_pos + ind] = tile_slice[ind];
+                }
+
+                x_pos += tile_x_pixel_count;
+            } else {
+                //copy subset to bg_line
+                for ind in 0..(GB_WIDTH - x_pos) {
+                    bg_line[x_pos + ind] = tile_slice[ind];
+                }
+                break;
             }
-            for x in 0..GB_WIDTH as usize {
-                self.pixels[x + (y * GB_WIDTH as usize)] = shade;
+        }
+
+        if self.lcdc_get_window_enable(cpu) {
+            // do window
+        }
+        bg_line
+    }
+
+    fn bg_tile_map_fetch(&self, cpu: &Cpu, tile_map_y: usize, tile_map_x: usize) -> usize {
+        let offset = tile_map_y * 32 + tile_map_x;
+        let base_address = if self.lcdc_get_bg_tile_map_area(cpu) {
+            TILE_MAP_1_ADDRESS
+        } else {
+            TILE_MAP_0_ADDRESS
+        };
+
+        cpu.read_hw_reg(base_address + offset) as usize
+    }
+
+    fn bg_tile_fetch(&self, cpu: &Cpu, tile_id: usize) -> [PixelShade; 8 * 8] {
+        let bgp = cpu.read_hw_reg(BGP_ADDRESS);
+        let shade_0 = PixelShade::from(bgp & 0b11);
+        let shade_1 = PixelShade::from((bgp >> 2) & 0b11);
+        let shade_2 = PixelShade::from((bgp >> 4) & 0b11);
+        let shade_3 = PixelShade::from((bgp >> 6) & 0b11);
+
+        let address = if self.lcdc_get_bg_and_window_tile_data_area(cpu) {
+            TILE_DATA_BLOCK_0_ADDRESS + (tile_id * 16)
+        } else {
+            if tile_id < 128 {
+                TILE_DATA_BLOCK_2_ADDRESS + (tile_id * 16)
+            } else {
+                TILE_DATA_BLOCK_1_ADDRESS + (tile_id - 128) * 16
+            }
+        };
+
+        let tile_color_ids = Ppu::tile_fetch(cpu, address, false, false);
+
+        let mut tile_pixels = [PixelShade::White; 8 * 8];
+        for (ind, color_id) in tile_color_ids.iter().enumerate() {
+            tile_pixels[ind] = match color_id {
+                0 => shade_0,
+                1 => shade_1,
+                2 => shade_2,
+                3 => shade_3,
+                _ => shade_0,
             }
         }
 
-        // draw box
-        let left_edge = self.box_y * GB_WIDTH + self.box_x;
-        for y in 0..BOX_SIZE {
-            for x in 0..BOX_SIZE {
-                self.pixels[left_edge + y * GB_WIDTH + x] = PixelShade::Dark;
+        tile_pixels
+    }
+
+    fn tile_fetch(cpu: &Cpu, tile_address: usize, mirror_x: bool, mirror_y: bool) -> [u8; 8 * 8] {
+        let mut tile_bytes = [0u8; 16];
+        for ind in 0..16usize {
+            tile_bytes[ind] = cpu.read_hw_reg(tile_address + ind);
+        }
+
+        let mut color_ids = [0u8; 8 * 8];
+        for pair_ind in 0..8 {
+            let ind = if mirror_y {
+                14 - (pair_ind * 2)
+            } else {
+                pair_ind * 2
+            };
+            //each row is made out of two bytes, first byte contains the high bits
+            let high_bits = tile_bytes[ind];
+            //second the low bits
+            let low_bits = tile_bytes[ind + 1];
+
+            //column left-to-right
+            for col in 0..8 {
+                let bit_shift = if mirror_x {
+                    // column and bit order have inverse relationship
+                    // 0 to 7 effectively right-to-left
+                    col
+                } else {
+                    //7 to 0; left-to-right
+                    7 - col
+                };
+                let high_bit = ((high_bits >> bit_shift) & 1) << 1;
+                let low_bit = (low_bits >> bit_shift) & 1;
+
+                let row = pair_ind * 2;
+                color_ids[row + col] = high_bit | low_bit;
             }
         }
 
-        //update velocity
-        const GB_WIDTH_I: i32 = GB_WIDTH as i32;
-        const GB_HEIGHT_I: i32 = GB_HEIGHT as i32;
-        const BOX_SIZE_I: i32 = BOX_SIZE as i32;
-        if self.box_x as i32 + self.box_vel_x > (GB_WIDTH_I - BOX_SIZE_I)
-            || self.box_x as i32 + self.box_vel_x < 0
-        {
-            self.box_vel_x *= -1;
-        }
-        if self.box_y as i32 + self.box_vel_y > (GB_HEIGHT_I - BOX_SIZE_I)
-            || self.box_y as i32 + self.box_vel_y < 0
-        {
-            self.box_vel_y *= -1;
-        }
-
-        //update box pos
-        self.box_x = (self.box_x as i32 + self.box_vel_x) as usize;
-        self.box_y = (self.box_y as i32 + self.box_vel_y) as usize;
+        color_ids
     }
 
     pub fn get_pixels(&self) -> [PixelShade; GB_WIDTH * GB_HEIGHT] {
@@ -530,9 +615,9 @@ impl Ppu {
     /** Indicates which background map the Window uses for rendering. When it’s false, the 0x9800
     tilemap is used, otherwise it’s the 0x9c00 one.
     https://gbdev.io/pandocs/Tile_Maps.html#vram-tile-maps */
-    fn lcdc_get_window_tile_map_area(&self, cpu: &Cpu) -> bool {
-        cpu.read_hw_reg(LCDC_ADDRESS) & 0b0100_0000 != 0
-    }
+    // fn lcdc_get_window_tile_map_area(&self, cpu: &Cpu) -> bool {
+    //     cpu.read_hw_reg(LCDC_ADDRESS) & 0b0100_0000 != 0
+    // }
 
     /** Indicates whether the window shall be displayed or not. */
     fn lcdc_get_window_enable(&self, cpu: &Cpu) -> bool {
@@ -559,9 +644,9 @@ impl Ppu {
     }
 
     /** Indicates whether sprites are displayed or not. */
-    fn lcdc_get_obj_enable(&self, cpu: &Cpu) -> bool {
-        cpu.read_hw_reg(LCDC_ADDRESS) & 0b0000_0010 != 0
-    }
+    // fn lcdc_get_obj_enable(&self, cpu: &Cpu) -> bool {
+    //     cpu.read_hw_reg(LCDC_ADDRESS) & 0b0000_0010 != 0
+    // }
 
     /** When false, both background and window become blank (white), and the Window Display is
      * ignored in that case. Only Sprites may still be displayed (if enabled). */
@@ -569,9 +654,9 @@ impl Ppu {
         cpu.read_hw_reg(LCDC_ADDRESS) & 0b0000_0001 != 0
     }
 
-    fn stat_get_mode_flag(cpu: &Cpu) -> LcdStatModeFlag {
-        LcdStatModeFlag::from(cpu.read_hw_reg(STAT_ADDRESS) & 0b0000_0011)
-    }
+    // fn stat_get_mode_flag(cpu: &Cpu) -> LcdStatModeFlag {
+    //     LcdStatModeFlag::from(cpu.read_hw_reg(STAT_ADDRESS) & 0b0000_0011)
+    // }
 
     fn stat_set_mode_flag(cpu: &mut Cpu, flag: LcdStatModeFlag) {
         let stat = cpu.read_hw_reg(STAT_ADDRESS) & 0b1111_1100;

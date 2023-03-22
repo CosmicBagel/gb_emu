@@ -52,5 +52,23 @@ pub const OAM_TABLE_ADDRESS: usize = 0xfe00; //Sprite table, max 40 sprites of 4
                                              Bit2-0 Palette number  **CGB Mode Only**     (OBP0-7)
                                          */
 
+pub const SCX_ADDRESS: usize = 0xff43;
+pub const SCY_ADDRESS: usize = 0xff42;
+pub const BGP_ADDRESS: usize = 0xff47;
+// pub const OBP0_ADDRESS: usize = 0xff48;
+// pub const OBP1_ADDRESS: usize = 0xff49;
+
+///each tile block holds 128 tiles (16 bytes each)
+// pub const TILE_DATA_BLOCK_SIZE: usize = 128 * 16;
+pub const TILE_DATA_BLOCK_0_ADDRESS: usize = 0x8000;
+pub const TILE_DATA_BLOCK_1_ADDRESS: usize = 0x8800;
+pub const TILE_DATA_BLOCK_2_ADDRESS: usize = 0x9000;
+
+///each tile map is 32x32 bytes (1024 bytes)
+// pub const TILE_MAP_SIZE: usize = 32 * 32;
+pub const TILE_MAP_0_ADDRESS: usize = 0x9800;
+pub const TILE_MAP_1_ADDRESS: usize = 0x9c00;
+
+// high ram is 126 bytes total
 pub const HIGH_RAM_START_ADDRESS: usize = 0xff80;
 pub const HIGH_RAM_END_ADDRESS: usize = 0xfffe;
