@@ -1,12 +1,12 @@
 use constants::*;
-use core::time;
+// use core::time;
 use cpu::{Cpu, CpuStepResult};
-use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture};
+use pixels::{PixelsBuilder, SurfaceTexture};
 use ppu::Ppu;
-use std::{env, process::exit, thread};
+use std::env;
 use winit::{
-    dpi::{LogicalSize, Pixel},
-    event::{self, Event, VirtualKeyCode},
+    dpi::LogicalSize,
+    event::{Event, VirtualKeyCode},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -15,6 +15,7 @@ use winit_input_helper::WinitInputHelper;
 mod addresses;
 mod constants;
 mod cpu;
+// mod gui;
 mod ppu;
 
 fn init_emulator() -> (Cpu, Ppu) {
@@ -50,7 +51,7 @@ fn main() {
 
     let mut pixels = {
         let window_size = window.inner_size();
-        let scale_factor = window.scale_factor() as f32;
+        // let scale_factor = window.scale_factor() as f32;
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         let pixels = PixelsBuilder::new(GB_WIDTH as u32, GB_HEIGHT as u32, surface_texture)
             .enable_vsync(false)
@@ -66,7 +67,7 @@ fn main() {
     //about 4194.304 cycles in 1ms
     //20972 is about 5ms -> we'll use this as cycles per sleep
     //1 nop takes 4 cycles
-    let cycle_duration = time::Duration::from_nanos(238);
+    // let cycle_duration = time::Duration::from_nanos(238);
     let cycles_per_yield = 20_000u32;
     let mut cycle_count_since_last_yield = 0u32;
 
@@ -88,9 +89,9 @@ fn main() {
                 control_flow.set_exit();
             }
 
-            if let Some(scale_factor) = input.scale_factor() {
+            // if let Some(scale_factor) = input.scale_factor() {
                 //todo update scaling factor in GUI
-            }
+            // }
 
             if let Some(size) = input.window_resized() {
                 //resize pixels and gui here
@@ -145,7 +146,7 @@ fn main() {
         }
 
         match event {
-            Event::WindowEvent { event, .. } => {
+            Event::WindowEvent { .. } => {
                 if is_gui_active {
                     // todo pass to gui
                 }
