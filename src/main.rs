@@ -105,8 +105,9 @@ fn main() {
             //todo: fetch joypad input here (keyboard or controller possibly) => update interrupts
 
             //process emulator cycles until a frame is ready
-            let mut cycle_cost = 0;
+            let mut frame_cycles = 0;
             loop {
+                let mut cycle_cost = 0;
                 match cpu.do_step() {
                     CpuStepResult::Stopped => {
                         control_flow.set_exit();
@@ -114,17 +115,23 @@ fn main() {
                     }
                     CpuStepResult::CyclesExecuted(cycles) => cycle_cost = cycles,
                 }
+                frame_cycles += cycle_cost;
                 total_cycles += cycle_cost;
 
-                let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
+                if !DR_GB_LOGGING_ENABLED {
+                    let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
 
-                match ppu_step_result {
-                    ppu::PpuStepResult::NoAction => {}
-                    ppu::PpuStepResult::Draw => {
-                        //will be only triggered on Draw PPU response
-                        window.request_redraw();
-                        break;
+                    match ppu_step_result {
+                        ppu::PpuStepResult::NoAction => {}
+                        ppu::PpuStepResult::Draw => {
+                            //will be only triggered on Draw PPU response
+                            window.request_redraw();
+                            break;
+                        }
                     }
+                } else if frame_cycles >= 70224 {
+                    window.request_redraw();
+                    break;
                 }
             }
 
@@ -135,7 +142,7 @@ fn main() {
             // all instructions take multiples of 4 cycles
 
             // spin_sleep::sleep(cycle_duration * cycle_cost);
-            cycle_count_since_last_yield += cycle_cost;
+            cycle_count_since_last_yield += frame_cycles;
 
             // this is so that the emulator doesn't hog the cpu and get punished
             // by the scheduler

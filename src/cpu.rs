@@ -202,6 +202,14 @@ impl Cpu {
     }
 
     pub fn do_step(&mut self) -> CpuStepResult {
+        //abort the loop if we keep jumping to the same instruction
+        if DR_GB_LOGGING_ENABLED {
+            if self.last_pc == self.pc && self.mem[self.pc] == 0x18 && self.mem[self.pc + 1] == 0xfe
+            {
+                return CpuStepResult::Stopped;
+            }
+        }
+
         let opcode = self.mem[self.pc];
 
         let mut cycle_cost = 0;
@@ -231,6 +239,11 @@ impl Cpu {
         } else {
             cycle_cost += self.primary_bytecode_table[opcode as usize](self, opcode);
             self.update_timer(cycle_cost);
+
+            if DR_GB_LOGGING_ENABLED {
+                //hack for dr gb logging
+                self.mem[LY_ADDRESS] = 0x90;
+            }
 
             //temp hack: clear lower 4 bits of F (these are invalid bits)
             self.f = self.f & 0xf0;
