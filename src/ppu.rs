@@ -599,7 +599,7 @@ impl Ppu {
                 let low_bit = (low_bits >> bit_shift) & 1;
 
                 // the 2 bit values are the color_ids
-                let row = pair_ind * 2;
+                let row = pair_ind * 8;
                 color_ids[row + col] = high_bit | low_bit;
             }
         }
