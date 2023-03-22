@@ -446,8 +446,8 @@ impl Ppu {
             let mut line = [PixelShade::White; GB_WIDTH];
 
             if self.lcdc_get_bg_and_window_enable(cpu) {
-                let mut bg_line = self.determine_bg_line(cpu, ly);
-                if ly % 8 == 0 {
+                let mut bg_line = self.render_bg_line(cpu, ly);
+                if ly % TILE_SIZE == 0 {
                     bg_line = [PixelShade::Dark; GB_WIDTH];
                 }
 
@@ -465,7 +465,6 @@ impl Ppu {
             for ind in 0..line.len() {
                 self.pixels[base + ind] = line[ind];
             }
-
         } else {
             self.debug_mode3_cycles += cycles;
         }
@@ -473,26 +472,26 @@ impl Ppu {
         (remainder, PpuStepResult::NoAction)
     }
 
-    fn determine_bg_line(&mut self, cpu: &mut Cpu, ly: usize) -> [PixelShade; GB_WIDTH] {
+    fn render_bg_line(&mut self, cpu: &mut Cpu, ly: usize) -> [PixelShade; GB_WIDTH] {
         // do background
         let scx = cpu.read_hw_reg(SCX_ADDRESS) as usize;
         let scy = cpu.read_hw_reg(SCY_ADDRESS) as usize;
 
         let mut bg_line = [PixelShade::White; GB_WIDTH];
 
-        let tile_map_y: usize = (scy + ly) / 8;
-        let tile_y_offset: usize = (scy + ly) % 8;
+        let tile_map_y: usize = (scy + ly) / TILE_SIZE;
+        let tile_y_offset: usize = (scy + ly) % TILE_SIZE;
 
         let mut x_pos = 0;
         while x_pos < GB_WIDTH {
             //determine tile at pixel
-            let tile_map_x = (scx + x_pos) / 8;
-            let tile_x_offset = (scx + x_pos) % 8;
-            let tile_x_pixel_count = 8 - tile_x_offset;
+            let tile_map_x = (scx + x_pos) / TILE_SIZE;
+            let tile_x_offset = (scx + x_pos) % TILE_SIZE;
+            let tile_x_pixel_count = TILE_SIZE - tile_x_offset;
             let tile_id = self.bg_tile_map_fetch(cpu, tile_map_y, tile_map_x);
 
             let tile = self.bg_tile_fetch(cpu, tile_id as usize);
-            let start = (tile_y_offset * 8) + tile_x_offset;
+            let start = (tile_y_offset * TILE_SIZE) + tile_x_offset;
             let end = start + tile_x_pixel_count;
             let tile_slice = &tile[start as usize..end as usize];
 
@@ -529,7 +528,7 @@ impl Ppu {
         cpu.read_hw_reg(base_address + offset) as usize
     }
 
-    fn bg_tile_fetch(&self, cpu: &Cpu, tile_id: usize) -> [PixelShade; 8 * 8] {
+    fn bg_tile_fetch(&self, cpu: &Cpu, tile_id: usize) -> [PixelShade; TILE_SIZE * TILE_SIZE] {
         let bgp = cpu.read_hw_reg(BGP_ADDRESS);
         let shade_0 = PixelShade::from(bgp & 0b11);
         let shade_1 = PixelShade::from((bgp >> 2) & 0b11);
@@ -537,18 +536,18 @@ impl Ppu {
         let shade_3 = PixelShade::from((bgp >> 6) & 0b11);
 
         let address = if self.lcdc_get_bg_and_window_tile_data_area(cpu) {
-            TILE_DATA_BLOCK_0_ADDRESS + (tile_id * 16)
+            TILE_DATA_BLOCK_0_ADDRESS + (tile_id * TILE_BYTES)
         } else {
             if tile_id < 128 {
-                TILE_DATA_BLOCK_2_ADDRESS + (tile_id * 16)
+                TILE_DATA_BLOCK_2_ADDRESS + (tile_id * TILE_BYTES)
             } else {
-                TILE_DATA_BLOCK_1_ADDRESS + (tile_id - 128) * 16
+                TILE_DATA_BLOCK_1_ADDRESS + (tile_id - 128) * TILE_BYTES
             }
         };
 
         let tile_color_ids = Ppu::tile_fetch(cpu, address, false, false);
 
-        let mut tile_pixels = [PixelShade::White; 8 * 8];
+        let mut tile_pixels = [PixelShade::White; TILE_SIZE * TILE_SIZE];
         for (ind, color_id) in tile_color_ids.iter().enumerate() {
             tile_pixels[ind] = match color_id {
                 0 => shade_0,
@@ -562,18 +561,25 @@ impl Ppu {
         tile_pixels
     }
 
-    fn tile_fetch(cpu: &Cpu, tile_address: usize, mirror_x: bool, mirror_y: bool) -> [u8; 8 * 8] {
-        let mut tile_bytes = [0u8; 16];
-        for ind in 0..16usize {
+    fn tile_fetch(
+        cpu: &Cpu,
+        tile_address: usize,
+        mirror_x: bool,
+        mirror_y: bool,
+    ) -> [u8; TILE_SIZE * TILE_SIZE] {
+        let mut tile_bytes = [0u8; TILE_BYTES];
+        for ind in 0..TILE_BYTES {
             tile_bytes[ind] = cpu.read_hw_reg(tile_address + ind);
         }
 
-        let mut color_ids = [0u8; 8 * 8];
-        for pair_ind in 0..8 {
+        let mut color_ids = [0u8; TILE_SIZE * TILE_SIZE];
+        for pair_ind in 0..TILE_SIZE {
             let ind = if mirror_y {
-                14 - (pair_ind * 2)
+                //14 - (pair_ind * 2); bottom-to-top indexing
+                (TILE_SIZE - TILE_BYTES_PER_ROW) - (pair_ind * TILE_BYTES_PER_ROW)
             } else {
-                pair_ind * 2
+                //pair_ind * 2; top-to-bottom indexing
+                pair_ind * TILE_BYTES_PER_ROW
             };
             //each row is made out of two bytes, first byte contains the high bits
             let high_bits = tile_bytes[ind];
@@ -581,18 +587,21 @@ impl Ppu {
             let low_bits = tile_bytes[ind + 1];
 
             //column left-to-right
-            for col in 0..8 {
+            for col in 0..TILE_SIZE {
                 let bit_shift = if mirror_x {
                     // column and bit order have inverse relationship
                     // 0 to 7 effectively right-to-left
                     col
                 } else {
                     //7 to 0; left-to-right
-                    7 - col
+                    (TILE_SIZE - 1) - col
                 };
+
+                // we interleave the bits from the two bytes
                 let high_bit = ((high_bits >> bit_shift) & 1) << 1;
                 let low_bit = (low_bits >> bit_shift) & 1;
 
+                // the 2 bit values are the color_ids
                 let row = pair_ind * 2;
                 color_ids[row + col] = high_bit | low_bit;
             }

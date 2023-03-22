@@ -18,6 +18,13 @@ pub const MEDIUM_SHADE: [u8; 4] = [0x66, 0x66, 0x66, 0xff];
 pub const DARK_SHADE: [u8; 4] = [0x22, 0x22, 0x22, 0xff];
 pub const DISABLED_SHADE: [u8; 4] = [0xff, 0x00, 0x00, 0xff];
 
+/// Tiles are 8*8, each row is two bytes, each pixel is 2 bits
+/// the bits of the two bytes are interleaved together to produce
+/// the 2 bit color id values
+pub const TILE_SIZE: usize = 8;
+pub const TILE_BYTES_PER_ROW: usize = 2;
+pub const TILE_BYTES: usize = TILE_SIZE * TILE_BYTES_PER_ROW;
+
 pub const IS_GUI_ACTIVE_DEFAULT: bool = true;
 
 pub const CPU_CYCLES_PER_HALTED_STEP: u32 = 4;
