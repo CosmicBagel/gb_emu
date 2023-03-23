@@ -235,6 +235,7 @@ impl Cpu {
 
         //execute instruction
         if self.is_halted {
+            self.update_timer(CPU_CYCLES_PER_HALTED_STEP);
             return CpuStepResult::CyclesExecuted(CPU_CYCLES_PER_HALTED_STEP);
         } else {
             cycle_cost += self.primary_bytecode_table[opcode as usize](self, opcode);
