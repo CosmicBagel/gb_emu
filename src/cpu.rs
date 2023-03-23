@@ -160,7 +160,7 @@ impl Cpu {
         if self.rom.len() < 0x0100 {
             // first 256 bytes is header, any rom with less than this is invalid
             // really anything shorter than 512 bytes is probably invalid
-            panic!("Rom is of invalid size ({} bytes)", rom.len());
+            panic!("Rom is of invalid size ({} bytes)", self.rom.len());
         }
 
         let mbc_type = self.rom[MBC_TYPE_ROM_ADDRESS];
