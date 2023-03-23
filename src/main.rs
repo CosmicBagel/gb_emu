@@ -85,7 +85,7 @@ fn main() {
                 is_gui_active = !is_gui_active;
             }
 
-            if input.quit() {
+            if input.close_requested() {
                 control_flow.set_exit();
             }
 
@@ -107,7 +107,7 @@ fn main() {
             //process emulator cycles until a frame is ready
             let mut frame_cycles = 0;
             loop {
-                let mut cycle_cost = 0;
+                let cycle_cost;
                 match cpu.do_step() {
                     CpuStepResult::Stopped => {
                         control_flow.set_exit();
