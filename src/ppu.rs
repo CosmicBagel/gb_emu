@@ -578,10 +578,10 @@ impl Ppu {
                 //pair_ind * 2; top-to-bottom indexing
                 pair_ind * TILE_BYTES_PER_ROW
             };
-            //each row is made out of two bytes, first byte contains the high bits
-            let high_bits = tile_bytes[ind];
-            //second the low bits
-            let low_bits = tile_bytes[ind + 1];
+            //each row is made out of two bytes, first byte contains the low bits
+            let low_bits = tile_bytes[ind];
+            //second the high bits
+            let high_bits = tile_bytes[ind + 1];
 
             //column left-to-right
             for col in 0..TILE_SIZE {
