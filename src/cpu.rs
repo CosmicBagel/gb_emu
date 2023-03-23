@@ -360,6 +360,7 @@ impl Cpu {
         //    10: CPU Clock / 64     65536 Hz
         //    11: CPU Clock / 256    16384 Hz
         let tac = self.mem[TAC_ADDRESS];
+
         let timer_enable = (tac & 0b0000_0100) != 0;
         if timer_enable {
             self.timer_cycle_counter += cycle_delta;
@@ -372,14 +373,16 @@ impl Cpu {
                 _ => panic!("invalid clock select"),
             };
             let timer_increment = self.timer_cycle_counter / timer_divisor;
-            let (result, overflow) = self.mem[TIMA_ADDRESS].overflowing_add(timer_increment as u8);
+            let tima = self.mem[TIMA_ADDRESS];
+            let (result, overflow) = tima.overflowing_add(timer_increment as u8);
+            self.timer_cycle_counter -= timer_increment * timer_divisor;
 
             self.mem[TIMA_ADDRESS] = if overflow {
                 let modulo = self.mem[TMA_ADDRESS];
                 //request timer interrupt
                 self.mem[INTERRUPT_FLAG_ADDRESS] |= InterruptFlags::Timer as u8;
 
-                modulo //+ result
+                modulo + result
             } else {
                 result
             }
