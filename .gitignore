@@ -1,7 +1,5 @@
 /target
 
-tetris.gb
-cpu_instrs.gb
 *.gb
 dr_log.txt
 *.log
