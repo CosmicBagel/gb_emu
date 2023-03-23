@@ -165,8 +165,8 @@ impl Cpu {
 
         let mbc_type = rom[MBC_TYPE_ROM_ADDRESS];
         println!("Memory Bank Controller Type: {}", mbc_type);
-        if mbc_type != 0 {
-            panic!("Fatal: MBC {} not supported", mbc_type);
+        if !SUPPORTED_MBC_TYPES.contains(&mbc_type) {
+            println!("Warning: MBC {} not supported", mbc_type);
         }
 
         self.rom = vec![0; rom.len()];
