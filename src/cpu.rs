@@ -67,6 +67,7 @@ pub struct Cpu {
 
     // memory
     mem: Vec<u8>,
+    rom: Vec<u8>,
 
     //opcode tables
     primary_bytecode_table: BytecodeTable,
@@ -129,6 +130,7 @@ impl Cpu {
             pc: 0x0000,
 
             mem: vec![0; 0x10000], //65535 valid memory bytes the full virtual space of 0xffff
+            rom: vec![0; 0],
             primary_bytecode_table: Cpu::build_bytecode_table(),
             cb_bytecode_table: Cpu::build_cb_bytecode_table(),
 
@@ -161,6 +163,14 @@ impl Cpu {
             panic!("Rom is of invalid size ({} bytes)", rom.len());
         }
 
+        let mbc_type = rom[MBC_TYPE_ROM_ADDRESS];
+        println!("Memory Bank Controller Type: {}", mbc_type);
+        if mbc_type != 0 {
+            panic!("Fatal: MBC {} not supported", mbc_type);
+        }
+
+        self.rom = vec![0; rom.len()];
+
         let mut global_sum = 0u16;
         let mut header_sum = 0u8;
 
@@ -173,11 +183,11 @@ impl Cpu {
             if i != 0x14e && i != 0x14f {
                 global_sum = global_sum.wrapping_add(rom[i] as u16);
             }
-            self.mem[i] = rom[i];
+            self.rom[i] = rom[i];
         }
 
-        let global_checksum = (self.mem[0x014e] as u16) << 8 | self.mem[0x014f] as u16;
-        let header_checksum = self.mem[0x014d];
+        let global_checksum = (self.rom[0x014e] as u16) << 8 | self.rom[0x014f] as u16;
+        let header_checksum = self.rom[0x014d];
 
         if header_sum != header_checksum {
             println!(
@@ -195,6 +205,11 @@ impl Cpu {
             );
         } else {
             println!("Global checksum passed ({:#04x})", global_sum);
+        }
+
+        //copy first memory block into position
+        for i in 0..0x7fff {
+            self.mem[i] = self.rom[i];
         }
 
         self.apply_post_boot_state(header_sum);

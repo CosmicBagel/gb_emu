@@ -72,3 +72,5 @@ pub const TILE_MAP_1_ADDRESS: usize = 0x9c00;
 // high ram is 126 bytes total
 pub const HIGH_RAM_START_ADDRESS: usize = 0xff80;
 pub const HIGH_RAM_END_ADDRESS: usize = 0xfffe;
+
+pub const MBC_TYPE_ROM_ADDRESS: usize = 0x0147;
