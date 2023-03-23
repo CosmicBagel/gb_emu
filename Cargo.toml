@@ -7,15 +7,10 @@ edition = "2021"
 
 [dependencies]
 
-winit = "*"
-winit_input_helper = "*"
-pixels = "*"
+winit = "0.28.3"
+winit_input_helper = "0.14.0"
+pixels = "0.12.0"
 
 egui = "*"
 egui-wgpu = "*"
 egui-winit = { version = "*", default-features = false, features = ["links"]}
-
-log = "*"
-env_logger = "*"
-
-spin_sleep = "1.1.1"

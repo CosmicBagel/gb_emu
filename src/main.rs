@@ -166,7 +166,7 @@ fn main() {
                 //might turn this into a 'get image' func and have pixels lib
                 //interfaced with outside of ppu
                 let gb_pixels = ppu.get_pixels();
-                let frame = pixels.get_frame_mut();
+                let frame = pixels.frame_mut();
                 for (gb_ind, gb_pixel) in gb_pixels.iter().enumerate() {
                     const PIXEL_BYTES: usize = 4;
                     let pixel_ind = gb_ind * PIXEL_BYTES;
