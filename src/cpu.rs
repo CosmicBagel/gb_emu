@@ -153,37 +153,36 @@ impl Cpu {
     }
 
     pub fn load_rom(&mut self, filename: &str) {
-        let rom = read(filename).unwrap_or_else(|e| {
+        self.rom = read(filename).unwrap_or_else(|e| {
             panic!("Bad rom file {:}\n{:}", filename, e);
         });
 
-        if rom.len() < 0x0100 {
+        if self.rom.len() < 0x0100 {
             // first 256 bytes is header, any rom with less than this is invalid
             // really anything shorter than 512 bytes is probably invalid
             panic!("Rom is of invalid size ({} bytes)", rom.len());
         }
 
-        let mbc_type = rom[MBC_TYPE_ROM_ADDRESS];
+        let mbc_type = self.rom[MBC_TYPE_ROM_ADDRESS];
         println!("Memory Bank Controller Type: {}", mbc_type);
         if !SUPPORTED_MBC_TYPES.contains(&mbc_type) {
             println!("Warning: MBC {} not supported", mbc_type);
         }
 
-        self.rom = vec![0; rom.len()];
 
         let mut global_sum = 0u16;
         let mut header_sum = 0u8;
 
         // copy rom and calc checksums
-        for i in 0..rom.len() {
+        for i in 0..self.rom.len() {
             //https://gbdev.io/pandocs/The_Cartridge_Header.html#014d--header-checksum
             if i >= 0x0134 && i <= 0x014c {
-                header_sum = header_sum.wrapping_sub(rom[i]).wrapping_sub(1);
+                header_sum = header_sum.wrapping_sub(self.rom[i]).wrapping_sub(1);
             }
             if i != 0x14e && i != 0x14f {
-                global_sum = global_sum.wrapping_add(rom[i] as u16);
+                global_sum = global_sum.wrapping_add(self.rom[i] as u16);
             }
-            self.rom[i] = rom[i];
+            self.rom[i] = self.rom[i];
         }
 
         let global_checksum = (self.rom[0x014e] as u16) << 8 | self.rom[0x014f] as u16;
