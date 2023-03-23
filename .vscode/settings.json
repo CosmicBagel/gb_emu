@@ -6,6 +6,7 @@
         "egui",
         "endianness",
         "gameboy",
+        "gamepad",
         "hblank",
         "hdma",
         "horz",
