@@ -6,6 +6,8 @@ pub const GB_WIDTH: usize = 160;
 pub const GB_HEIGHT: usize = 144;
 pub const INVISIBLE_VBLANK_LINES: usize = 10;
 
+pub const CLOCKS_PER_FRAME: u32 = 70224;
+
 pub const WINDOW_WIDTH: u32 = 640;
 pub const WINDOW_HEIGHT: u32 = 480;
 pub const WINDOW_TITLE: &str = "gb_emu";

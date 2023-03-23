@@ -129,7 +129,7 @@ fn main() {
                             break;
                         }
                     }
-                } else if frame_cycles >= 70224 {
+                } else if frame_cycles >= CLOCKS_PER_FRAME {
                     window.request_redraw();
                     break;
                 }
