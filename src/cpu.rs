@@ -3053,6 +3053,7 @@ PC: 0x{:04x}",
     //0x76
     fn halt(&mut self, _: u8) -> CycleCount {
         self.is_halted = true;
+        self.pc += 1;
         4
     }
 
