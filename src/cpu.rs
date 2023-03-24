@@ -12,6 +12,7 @@ const N_FLAG_MASK: u8 = 0b0100_0000;
 const H_FLAG_MASK: u8 = 0b0010_0000;
 const C_FLAG_MASK: u8 = 0b0001_0000;
 
+#[derive(Debug)]
 pub enum InterruptFlags {
     VBlank = 0b0000_0001,
     LcdStat = 0b0000_0010,
@@ -20,6 +21,7 @@ pub enum InterruptFlags {
     Joypad = 0b0001_0000,
 }
 
+#[derive(Debug)]
 enum InterruptAddresses {
     VBlank = 0x0040,
     LcdStat = 0x0048,
