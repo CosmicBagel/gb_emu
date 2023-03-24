@@ -502,35 +502,70 @@ impl Cpu {
 
     //used by cpu instructions, other emulator code just accesses directly
     fn read_mem(&self, address: usize) -> u8 {
-        if self.is_oam_dma_active {
+        let ppu_mode = self.mem[STAT_ADDRESS] & 0b11;
+        if ppu_mode == 3 {
+            // if mode 3 block all VRAM (return 0xff garbage value)
             match address {
+                VRAM_ADDRESS..=VRAM_END_ADDRESS => return 0xff,
+                _ => {}
+            }
+        }
+        if ppu_mode == 2 || ppu_mode == 3 {
+            // if mode 2 or 3 block OAM table (return 0xff garbage value)
+            match address {
+                OAM_TABLE_ADDRESS..=OAM_TABLE_END_ADDRESS => return 0xff,
+                _ => {}
+            }
+        }
+
+        if self.is_oam_dma_active {
+            return match address {
                 HIGH_RAM_START_ADDRESS..=HIGH_RAM_END_ADDRESS => self.mem[address],
                 OAM_DMA_ADDRESS => self.mem[address],
                 _ => {
-                    println!("warning: program attempted to read invalid memory during OAM DMA");
+                    println!(
+                        "({:x}) warning: program attempted to read invalid memory during OAM DMA",
+                        self.pc
+                    );
+                    0x00
+                }
+            };
+        }
+
+        // normal ram access
+        match address {
+            FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {
+                //technically reading from the FORBIDDEN ADDRESS range is supposed to corrupt
+                //the OAM memory, but i'd rather not emulate that
+                let ppu_mode = self.mem[STAT_ADDRESS] & 0b0000_0011;
+                if ppu_mode == 0b10 || ppu_mode == 0b11 {
+                    0xff
+                } else {
                     0x00
                 }
             }
-        } else {
-            // not oam time
-            match address {
-                FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {
-                    //technically reading from the FORBIDDEN ADDRESS range is supposed to corrupt
-                    //the OAM memory, but i'd rather not emulate that
-                    let ppu_mode = self.mem[STAT_ADDRESS] & 0b0000_0011;
-                    if ppu_mode == 0b10 || ppu_mode == 0b11 {
-                        0xff
-                    } else {
-                        0x00
-                    }
-                }
-                _ => self.mem[address],
-            }
+            _ => self.mem[address],
         }
     }
 
     //used by cpu instructions, other emulator code just accesses directly
     fn write_mem(&mut self, address: usize, value: u8) {
+        let ppu_mode = self.mem[STAT_ADDRESS] & 0b11;
+        if ppu_mode == 3 {
+            // if mode 3 block all VRAM
+            match address {
+                VRAM_ADDRESS..=VRAM_END_ADDRESS => return,
+                _ => {}
+            }
+        }
+        if ppu_mode == 2 || ppu_mode == 3 {
+            // if mode 2 or 3 block OAM table
+            match address {
+                OAM_TABLE_ADDRESS..=OAM_TABLE_END_ADDRESS => return,
+                _ => {}
+            }
+        }
+
         if self.is_oam_dma_active {
             match address {
                 HIGH_RAM_START_ADDRESS..=HIGH_RAM_END_ADDRESS => {
