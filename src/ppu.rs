@@ -241,8 +241,9 @@ impl Ppu {
         //when lcd is toggled back on, go to mode 2, reset current scanline to 0
         if !self.lcdc_last_enabled && lcd_enabled {
             cpu.write_hw_reg(LY_ADDRESS, 0);
+            self.pixels = [PixelShade::White; GB_WIDTH * GB_HEIGHT];
             self.mode_func = Ppu::start_mode2_object_search;
-            return (0, PpuStepResult::NoAction);
+            return (0, PpuStepResult::Draw);
         }
 
         // when lcd is disabled, clear the screen
