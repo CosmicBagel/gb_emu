@@ -171,7 +171,6 @@ impl Cpu {
             println!("Warning: Cartridge Type 0x{:x} not supported", cart_type);
         }
 
-
         let mut global_sum = 0u16;
         let mut header_sum = 0u8;
 
