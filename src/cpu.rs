@@ -287,6 +287,7 @@ impl Cpu {
                     // the cost of most instructions, additionally the spin wait loops used while waiting
                     // for OAM DMA to finish are usually tuned to be exactly 160 cycles before returning
                     self.is_oam_dma_active = false;
+                    println!("OAM DMA END");
                 }
             }
 
@@ -478,6 +479,7 @@ impl Cpu {
         address: InterruptAddresses,
         flag_mask: InterruptFlags,
     ) {
+        println!("Firing interrupt {:?}", address);
         //0 out the interrupt flag bit
         self.mem[INTERRUPT_FLAG_ADDRESS] ^= flag_mask as u8;
         self.interrupt_master_enable = false;
@@ -555,15 +557,52 @@ impl Cpu {
                 //bottom three bits (0-2) are read only
                 let current_lower_bits = self.mem[address] & 0b0000_0111;
                 let filtered_value = (value & 0b1111_1000) | current_lower_bits;
+                println!(
+                    "stat changed from {:#010b} to {:#010b} (unfiltered {:#010b})",
+                    self.mem[address], filtered_value, value
+                );
                 self.mem[address] = filtered_value;
             }
+            LCDC_ADDRESS => {
+                let is_vblank = self.mem[STAT_ADDRESS] & 0b11 == 1;
+                println!(
+                    "LCDC changed from {:#010b} to {:#010b}, During VBlank?: {:?}",
+                    self.mem[address], value, is_vblank
+                );
+                self.mem[address] = value;
+            }
             OAM_DMA_ADDRESS => {
+                println!("Writing to OAM DMA 0x{:x}", value);
                 if !self.is_oam_dma_active {
                     self.oam_dma(value);
                 } else {
                     self.mem[OAM_DMA_ADDRESS] = value;
                 }
             }
+            TIMA_ADDRESS => {
+                println!("TIMA changed from {} to {}", self.mem[address], value);
+                self.mem[address] = value;
+            }
+            TAC_ADDRESS => {
+                println!(
+                    "TAC changed from {:#010b} to {:#010b}",
+                    self.mem[address], value
+                );
+                self.mem[address] = value;
+            }
+            INTERRUPT_FLAG_ADDRESS => {
+                println!(
+                    "IF changed from {:#010b} to {:#010b}",
+                    self.mem[address], value
+                );
+                self.mem[address] = value;
+            }
+            INTERRUPT_ENABLE_ADDRESS => {
+                println!(
+                    "IE changed from {:#010b} to {:#010b}",
+                    self.mem[address], value
+                );
+                self.mem[address] = value;
             }
             _ => self.mem[address] = value,
         }
@@ -572,7 +611,7 @@ impl Cpu {
     fn oam_dma(&mut self, start_address_high_byte: u8) {
         //Source:      $XX00-$XX9F   ;XX = $00 to $DF
         //Destination: $FE00-$FE9F
-
+        println!("OAM DMA TRIGGERED");
         if start_address_high_byte > 0xdf {
             // invalid start address, do not execute oam dma
             println!("warning: program attempted invalid oam dma (invalid start address)");
@@ -2666,6 +2705,7 @@ PC: 0x{:04x}",
 
     //0xf3
     fn disable_interrupt(&mut self, _: u8) -> CycleCount {
+        println!("disabling IME");
         self.interrupt_master_enable = false;
         self.ei_delay = 0;
         self.pc += 1;
@@ -2674,6 +2714,7 @@ PC: 0x{:04x}",
 
     //0xfb
     fn enable_interrupt(&mut self, _: u8) -> CycleCount {
+        println!("enabling IME");
         self.ei_delay = 2;
         self.pc += 1;
         4
