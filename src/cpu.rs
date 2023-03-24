@@ -3003,6 +3003,9 @@ PC: 0x{:04x}",
         //the full instruction is 0x10_00, we need to read the next opcode for this
         if self.mem[self.pc + 1] == 0x00 {
             self.is_stopped = true;
+
+            // timer obscura https://gbdev.io/pandocs/Timer_and_Divider_Registers.html#ff04--div-divider-register
+            self.write_mem(DIV_ADDRESS, 0);
         }
         //if the full instruction isn't present, we do nothing and move on
         4
