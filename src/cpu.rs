@@ -501,44 +501,54 @@ impl Cpu {
     //used by cpu instructions, other emulator code just accesses directly
     fn read_mem(&self, address: usize) -> u8 {
         if self.is_oam_dma_active {
-            if address >= HIGH_RAM_START_ADDRESS && address <= HIGH_RAM_END_ADDRESS {
-                return self.mem[address];
-            } else {
-                println!("warning: program attempted to read invalid memory during OAM DMA");
-                return 0x00;
-            }
-        }
-
-        match address {
-            FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {
-                //technically reading from the FORBIDDEN ADDRESS range is supposed to corrupt
-                //the OAM memory, but i'd rather not emulate that
-                let ppu_mode = self.mem[STAT_ADDRESS] & 0b0000_0011;
-                if ppu_mode == 0b10 || ppu_mode == 0b11 {
-                    0xff
-                } else {
+            match address {
+                HIGH_RAM_START_ADDRESS..=HIGH_RAM_END_ADDRESS => self.mem[address],
+                OAM_DMA_ADDRESS => self.mem[address],
+                _ => {
+                    println!("warning: program attempted to read invalid memory during OAM DMA");
                     0x00
                 }
             }
-            _ => self.mem[address],
+        } else {
+            // not oam time
+            match address {
+                FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {
+                    //technically reading from the FORBIDDEN ADDRESS range is supposed to corrupt
+                    //the OAM memory, but i'd rather not emulate that
+                    let ppu_mode = self.mem[STAT_ADDRESS] & 0b0000_0011;
+                    if ppu_mode == 0b10 || ppu_mode == 0b11 {
+                        0xff
+                    } else {
+                        0x00
+                    }
+                }
+                _ => self.mem[address],
+            }
         }
     }
 
     //used by cpu instructions, other emulator code just accesses directly
     fn write_mem(&mut self, address: usize, value: u8) {
         if self.is_oam_dma_active {
-            if address >= HIGH_RAM_START_ADDRESS && address <= HIGH_RAM_END_ADDRESS {
-                self.mem[address] = value;
-                return;
-            } else {
-                println!("warning: program attempted to write to invalid memory during OAM DMA");
-                return;
+            match address {
+                HIGH_RAM_START_ADDRESS..=HIGH_RAM_END_ADDRESS => {
+                    self.mem[address] = value;
+                }
+                OAM_DMA_ADDRESS => {
+                    self.mem[address] = value;
+                }
+                _ => {
+                    println!("warning: program attempted to write to invalid memory during OAM DMA")
+                }
             }
+            return;
         }
 
         match address {
             // 0x4424 => println!("writing {:2x} to {:4x}", value, address),
-            DIV_ADDRESS => self.mem[DIV_ADDRESS] = 0x00,
+            DIV_ADDRESS => {
+                self.mem[DIV_ADDRESS] = 0x00;
+            }
             LY_ADDRESS => {} //block LY_ADDRESS write, only ppu can write to this
             FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {} //forbidden memory is forbidden
             STAT_ADDRESS => {
@@ -548,7 +558,12 @@ impl Cpu {
                 self.mem[address] = filtered_value;
             }
             OAM_DMA_ADDRESS => {
-                self.oam_dma(value);
+                if !self.is_oam_dma_active {
+                    self.oam_dma(value);
+                } else {
+                    self.mem[OAM_DMA_ADDRESS] = value;
+                }
+            }
             }
             _ => self.mem[address] = value,
         }
@@ -563,6 +578,8 @@ impl Cpu {
             println!("warning: program attempted invalid oam dma (invalid start address)");
             return;
         }
+
+        self.mem[OAM_DMA_ADDRESS] = start_address_high_byte;
 
         self.is_oam_dma_active = true;
         self.dma_active_cycle_counter = 0;
