@@ -8,8 +8,8 @@ pub const INVISIBLE_VBLANK_LINES: usize = 10;
 
 pub const CLOCKS_PER_FRAME: u32 = 70224;
 
-pub const WINDOW_WIDTH: u32 = 640;
-pub const WINDOW_HEIGHT: u32 = 480;
+pub const WINDOW_WIDTH: u32 = 800;
+pub const WINDOW_HEIGHT: u32 = 720;
 pub const WINDOW_TITLE: &str = "gb_emu";
 
 pub const OAM_TABLE_SIZE: usize = 40;
