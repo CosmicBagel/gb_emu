@@ -3,7 +3,7 @@ use constants::*;
 use cpu::{Cpu, CpuStepResult};
 use pixels::{PixelsBuilder, SurfaceTexture};
 use ppu::Ppu;
-use std::env;
+use std::{env, thread, time};
 use winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -126,11 +126,13 @@ fn main() {
                         ppu::PpuStepResult::Draw => {
                             //will be only triggered on Draw PPU response
                             window.request_redraw();
+                            thread::sleep(time::Duration::from_millis(100));
                             break;
                         }
                     }
                 } else if frame_cycles >= CLOCKS_PER_FRAME {
                     window.request_redraw();
+                    thread::sleep(time::Duration::from_millis(100));
                     break;
                 }
             }
