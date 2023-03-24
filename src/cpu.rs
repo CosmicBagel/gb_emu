@@ -163,10 +163,10 @@ impl Cpu {
             panic!("Rom is of invalid size ({} bytes)", self.rom.len());
         }
 
-        let mbc_type = self.rom[MBC_TYPE_ROM_ADDRESS];
-        println!("Memory Bank Controller Type: {}", mbc_type);
-        if !SUPPORTED_MBC_TYPES.contains(&mbc_type) {
-            println!("Warning: MBC {} not supported", mbc_type);
+        let cart_type = self.rom[CARTRIDGE_TYPE_ROM_ADDRESS];
+        println!("Cartridge Type: 0x{:x}", cart_type);
+        if !SUPPORTED_MBC_TYPES.contains(&cart_type) {
+            println!("Warning: Cartridge Type 0x{:x} not supported", cart_type);
         }
 
 
