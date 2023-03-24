@@ -5,3 +5,4 @@ dr_log.txt
 *.log
 
 mooneye-test-suite/
+test_roms/dmg-acid2-reference.png
