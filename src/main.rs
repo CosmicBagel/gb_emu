@@ -118,21 +118,23 @@ fn main() {
                 frame_cycles += cycle_cost;
                 total_cycles += cycle_cost;
 
-                if !DR_GB_LOGGING_ENABLED {
-                    let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
+                let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
 
-                    match ppu_step_result {
-                        ppu::PpuStepResult::NoAction => {}
-                        ppu::PpuStepResult::Draw => {
-                            //will be only triggered on Draw PPU response
-                            window.request_redraw();
-                            thread::sleep(time::Duration::from_millis(100));
-                            break;
-                        }
+                match ppu_step_result {
+                    ppu::PpuStepResult::NoAction => {}
+                    ppu::PpuStepResult::Draw => {
+                        //will be only triggered on Draw PPU response
+                        window.request_redraw();
+                        thread::sleep(time::Duration::from_millis(0));
+                        break;
                     }
-                } else if frame_cycles >= CLOCKS_PER_FRAME {
+                }
+
+                // don't let the emulator hang in case of bug or something weird
+                if frame_cycles >= CLOCKS_PER_FRAME {
+                    println!("WARNING: Forcing frame draw!!!");
                     window.request_redraw();
-                    thread::sleep(time::Duration::from_millis(100));
+                    thread::sleep(time::Duration::from_millis(0));
                     break;
                 }
             }
