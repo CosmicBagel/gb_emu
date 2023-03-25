@@ -2377,7 +2377,7 @@ PC: 0x{:04x}",
         //after the memory write.
         let address = self.get_hl() as usize;
         self.write_mem(address, self.a);
-        self.set_hl(address as u16 + 1);
+        self.set_hl((address as u16).wrapping_add(1));
         self.pc += 1;
         8
     }
