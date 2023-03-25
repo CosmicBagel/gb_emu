@@ -537,12 +537,7 @@ impl Cpu {
             FORBIDDEN_ADDRESS_START..=FORBIDDEN_ADDRESS_END => {
                 //technically reading from the FORBIDDEN ADDRESS range is supposed to corrupt
                 //the OAM memory, but i'd rather not emulate that
-                let ppu_mode = self.mem[STAT_ADDRESS] & 0b0000_0011;
-                if ppu_mode == 0b10 || ppu_mode == 0b11 {
-                    0xff
-                } else {
-                    0x00
-                }
+                0xff
             }
             _ => self.mem[address],
         }
