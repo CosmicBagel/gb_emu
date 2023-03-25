@@ -67,6 +67,8 @@ pub struct Cpu {
     sp: usize,
     pc: usize,
 
+    last_opcode: u8,
+
     // memory
     mem: Vec<u8>,
     rom: Vec<u8>,
@@ -131,8 +133,11 @@ impl Cpu {
             sp: 0xfffe, //the starting point for stack ram (0xff80 to 0xfffe; 127 bytes)
             pc: 0x0000,
 
+            last_opcode: 0x00,
+
             mem: vec![0; 0x10000], //65535 valid memory bytes the full virtual space of 0xffff
             rom: vec![0; 0],
+
             primary_bytecode_table: Cpu::build_bytecode_table(),
             cb_bytecode_table: Cpu::build_cb_bytecode_table(),
 
@@ -276,6 +281,7 @@ impl Cpu {
             self.dr_log_line();
             self.instruction_count += 1;
             self.last_pc = self.pc;
+            self.last_opcode = opcode;
 
             if self.is_oam_dma_active {
                 self.dma_active_cycle_counter += cycle_cost;
@@ -3112,7 +3118,23 @@ PC: 0x{:04x}",
     //0x76
     fn halt(&mut self, _: u8) -> CycleCount {
         self.is_halted = true;
-        self.pc += 1;
+
+        // halt bug cases
+        // https://gbdev.io/pandocs/halt.html#halt-bug
+        let interrupt_pending = (self.mem[INTERRUPT_ENABLE_ADDRESS] & self.mem[INTERRUPT_FLAG_ADDRESS]) != 0;
+        let case0 = !self.interrupt_master_enable && interrupt_pending;
+        const IE_OPCODE: u8 = 0xfb;
+        let case1 = self.last_opcode == IE_OPCODE && interrupt_pending;
+
+        if !case0 && !case1 {
+            self.pc += 1;
+        }
+        
+        if case1 {
+            self.interrupt_master_enable = true;
+            self.ei_delay = 0;
+        }
+
         4
     }
 
