@@ -649,6 +649,20 @@ impl Cpu {
                 );
                 self.mem[address] = value;
             }
+            SB_SERIAL_OUT_ADDRESS => {
+                println!(
+                    "({:#06x}) SB changed from {:#010b} to {:#010b}",
+                    self.pc, self.mem[address], value
+                );
+                self.mem[address] = value;
+            }
+            SC_SERIAL_CONTROL_ADDRESS => {
+                println!(
+                    "({:#06x}) SC changed from {:#010b} to {:#010b}",
+                    self.pc, self.mem[address], value
+                );
+                self.mem[address] = value;
+            }
             JOYPAD_ADDRESS => {
                 let filtered_value = (value & 0b0011_0000) | self.mem[address];
                 println!(

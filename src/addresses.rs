@@ -93,4 +93,7 @@ pub const CARTRIDGE_TYPE_ROM_ADDRESS: usize = 0x0147;
 pub const VRAM_ADDRESS: usize = 0x8000;
 pub const VRAM_END_ADDRESS: usize = 0x9fff;
 
+pub const SB_SERIAL_OUT_ADDRESS: usize = 0xff01;
+pub const SC_SERIAL_CONTROL_ADDRESS: usize = 0xff02;
+
 pub const JOYPAD_ADDRESS: usize = 0xff00;
