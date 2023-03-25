@@ -225,6 +225,8 @@ impl Cpu {
             }
         }
 
+        self.update_joypad();
+
         let opcode = self.mem[self.pc];
 
         let mut cycle_cost = 0;
@@ -404,6 +406,11 @@ impl Cpu {
                 result
             }
         }
+    }
+
+    fn update_joypad(&mut self) {
+        //todo 
+        self.mem[JOYPAD_ADDRESS] = (self.mem[JOYPAD_ADDRESS] & 0b0011_0000) | 0b0000_1111;
     }
 
     fn check_interrupts(&mut self) -> Option<(InterruptAddresses, InterruptFlags)> {
@@ -635,6 +642,14 @@ impl Cpu {
                     self.pc, self.mem[address], value
                 );
                 self.mem[address] = value;
+            }
+            JOYPAD_ADDRESS => {
+                let filtered_value = (value & 0b0011_0000) | self.mem[address];
+                println!(
+                    "({:#06x}) JOYPAD changed from {:#010b} to {:#010b} (unfiltered {:#010b})",
+                    self.pc, self.mem[address], filtered_value, value
+                );
+                self.mem[address] = filtered_value;
             }
             _ => self.mem[address] = value,
         }
