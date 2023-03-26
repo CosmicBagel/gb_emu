@@ -1,6 +1,7 @@
 /target
 
 *.gb
+*.sav
 dr_log.txt
 *.log
 
