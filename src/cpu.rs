@@ -3207,7 +3207,8 @@ PC: 0x{:04x}",
 
         // halt bug cases
         // https://gbdev.io/pandocs/halt.html#halt-bug
-        let interrupt_pending = (self.mem[INTERRUPT_ENABLE_ADDRESS] & self.mem[INTERRUPT_FLAG_ADDRESS]) != 0;
+        let interrupt_pending =
+            (self.mem[INTERRUPT_ENABLE_ADDRESS] & self.mem[INTERRUPT_FLAG_ADDRESS]) != 0;
         let case0 = !self.interrupt_master_enable && interrupt_pending;
         const IE_OPCODE: u8 = 0xfb;
         let case1 = self.last_opcode == IE_OPCODE && interrupt_pending;
@@ -3215,7 +3216,7 @@ PC: 0x{:04x}",
         if !case0 && !case1 {
             self.pc += 1;
         }
-        
+
         if case1 {
             self.interrupt_master_enable = true;
             self.ei_delay = 0;
