@@ -37,7 +37,7 @@ fn init_emulator() -> (Cpu, Ppu) {
 fn main() {
     SimpleLogger::new()
         .with_colors(true)
-        .with_level(log::LevelFilter::Off)
+        .with_level(log::LevelFilter::Error)
         .with_module_level("gb_emu", log::LevelFilter::Trace)
         .init()
         .unwrap();
