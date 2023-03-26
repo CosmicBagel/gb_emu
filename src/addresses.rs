@@ -97,3 +97,148 @@ pub const SB_SERIAL_OUT_ADDRESS: usize = 0xff01;
 pub const SC_SERIAL_CONTROL_ADDRESS: usize = 0xff02;
 
 pub const JOYPAD_ADDRESS: usize = 0xff00;
+
+/// NR52 Sound on/off  
+/// * Bit 7 - All sound on/off  (0: turn the APU off) (Read/Write)  
+///     * When APU is off, all audio registers are cleared, and READ ONLY
+/// * Bit 3 - Channel 4 ON flag (Read Only)  
+/// * Bit 2 - Channel 3 ON flag (Read Only)  
+/// * Bit 1 - Channel 2 ON flag (Read Only)  
+/// * Bit 0 - Channel 1 ON flag (Read Only)  
+pub const NR52_SOUND_ON_OFF_ADDRESS: usize = 0xff26;
+
+/// NR52 Sound Panning
+/// * Bit 7 - Mix channel 4 into left output
+/// * Bit 6 - Mix channel 3 into left output
+/// * Bit 5 - Mix channel 2 into left output
+/// * Bit 4 - Mix channel 1 into left output
+/// * Bit 3 - Mix channel 4 into right output
+/// * Bit 2 - Mix channel 3 into right output
+/// * Bit 1 - Mix channel 2 into right output
+/// * Bit 0 - Mix channel 1 into right output
+pub const NR51_SOUND_PANNING_ADDRESS: usize = 0xff25;
+
+/// NR50 Master volume & VIN panning
+/// * Bit 7   - Mix VIN into left output  (1=Enable)
+/// * Bit 6-4 - Left output volume        (0-7)
+/// * Bit 3   - Mix VIN into right output (1=Enable)
+/// * Bit 2-0 - Right output volume       (0-7)
+pub const NR50_VOLUME_VIN_PANNING_ADDRESS: usize = 0xff24;
+
+/// NR10 Channel 1 Sweep
+/// * Bit 6-4 - Sweep pace
+/// * Bit 3   - Sweep increase/decrease
+///     * 0: Addition    (wavelength increases)
+///     * 1: Subtraction (wavelength decreases)
+/// * Bit 2-0 - Sweep slope control (n: 0-7)
+pub const NR10_CHANNEL1_SWEEP_ADDRESS: usize = 0xff10;
+
+/// NR11 Channel 1 length timer & duty cycle
+/// * Bit 7-6 - Wave duty (Read/Write)
+///     * 0b00: 12.5 %	
+///     * 0b01: 25.0 %	
+///     * 0b10: 50.0 %	
+///     * 0b11: 75.0 %
+/// * Bit 5-0 - Initial length timer (Write Only)
+pub const NR11_CHANNEL1_LENGTH_DUTY_ADDRESS: usize = 0xff11;
+
+/// NR12 Channel 1 volume & envelope
+/// * Bit 7-4 - Initial volume of envelope (0-F) (0=No Sound)
+/// * Bit 3   - Envelope direction (0=Decrease, 1=Increase)
+/// * Bit 2-0 - Sweep pace (0=No Sweep)
+pub const NR12_CHANNEL1_VOLUME_ENVELOPE_ADDRESS: usize = 0xff12;
+
+/// NR13 Channel 1 wavelength low (write-only)
+/// * Stores the low 8bits of the 11-bit wavelength
+pub const NR13_CHANNEL1_WAVELENGTH_LOW_ADDRESS: usize = 0xff13;
+
+///NR14 Channel 1 wavelength high & control
+/// * Bit 7   - Trigger (1=Restart channel)  (Write Only)
+/// * Bit 6   - Sound Length enable          (Read/Write)
+///     * (1=Stop output when length in NR11 expires)
+/// * Bit 2-0 - "Wavelength"'s higher 3 bits (Write Only)
+pub const NR14_CHANNEL1_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS: usize = 0xff14;
+
+/// NR21 Channel 2 length timer & duty cycle
+/// * Bit 7-6 - Wave duty (Read/Write)
+///     * 0b00: 12.5 %	
+///     * 0b01: 25.0 %	
+///     * 0b10: 50.0 %	
+///     * 0b11: 75.0 %
+/// * Bit 5-0 - Initial length timer (Write Only)
+pub const NR21_CHANNEL2_LENGTH_DUTY_ADDRESS: usize = 0xff16;
+
+/// NR22 Channel 2 volume & envelope
+/// * Bit 7-4 - Initial volume of envelope (0-F) (0=No Sound)
+/// * Bit 3   - Envelope direction (0=Decrease, 1=Increase)
+/// * Bit 2-0 - Sweep pace (0=No Sweep)
+pub const NR22_CHANNEL2_VOLUME_ENVELOPE_ADDRESS: usize = 0xff17;
+
+/// NR23 Channel 2 wavelength low (write-only)
+/// * Stores the low 8bits of the 11-bit wavelength
+pub const NR23_CHANNEL2_WAVELENGTH_LOW_ADDRESS: usize = 0xff18;
+
+/// NR24 Channel 2 wavelength high & control
+/// * Bit 7   - Trigger (1=Restart channel)  (Write Only)
+/// * Bit 6   - Sound Length enable          (Read/Write)
+///     * (1=Stop output when length in NR21 expires)
+/// * Bit 2-0 - "Wavelength"'s higher 3 bits (Write Only)
+pub const NR24_CHANNEL2_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS: usize = 0xff19;
+
+/// NR30 Channel 3 DAC Enable
+/// * Bit 7 - Sound Channel 3 DAC  (0=Off, 1=On)
+pub const NR30_CHANNEL3_DAC_ENABLE_ADDRESS: usize = 0xff1a;
+
+/// NR31 Channel 3 length time (write only)
+/// *  Bit 7-0 - length timer
+pub const NR31_CHANNEL3_LENGTH_TIMER_ADDRESS: usize = 0xff1b;
+
+/// NR32 Channel 3 output level
+/// * Bits 6-5 - Output level selection
+///     * 0b00 - Mute
+///     * 0b01 - 100% volume (use samples read from Wave RAM as-is)
+///     * 0b10 - 50% volume (shift samples read from Wave RAM right once)
+///     * 0b11 - 25% volume (shift samples read from Wave RAM right twice)
+pub const NR32_CHANNEL3_OUTPUT_LEVEL_ADDRESS: usize = 0xff1c;
+
+/// NR33 Channel 3 wavelength low (write-only)
+/// * Stores the low 8bits of the 11-bit wavelength
+pub const NR33_CHANNEL3_WAVELENGTH_LOW_ADDRESS: usize = 0xff1d;
+
+/// NR34 Channel 3 wavelength high & control
+/// * Bit 7   - Trigger (1=Restart channel)  (Write Only)
+/// * Bit 6   - Sound Length enable          (Read/Write)
+///     * (1=Stop output when length in NR31 expires)
+/// * Bit 2-0 - "Wavelength"'s higher 3 bits (Write Only)
+pub const NR34_CHANNEL3_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS: usize = 0xff1e;
+
+/// NR41 Channel 4 length time (write only)
+/// *  Bit 5-0 - length timer
+pub const NR41_CHANNEL4_LENGTH_TIMER_ADDRESS: usize = 0xff20;
+
+/// NR42 Channel 4 volume & envelope
+/// * Bit 7-4 - Initial volume of envelope (0-F) (0=No Sound)
+/// * Bit 3   - Envelope direction (0=Decrease, 1=Increase)
+/// * Bit 2-0 - Sweep pace (0=No Sweep)
+pub const NR42_CHANNEL_4_VOLUME_ENVELOPE_ADDRESS: usize = 0xff21;
+
+/// NR43 Channel 4 frequency and randomness
+/// * Bit 7-4 - Clock shift (s)
+/// * Bit 3   - LFSR width (0=15 bits, 1=7 bits)
+///     * LFSR = linear-feedback shift register?
+/// * Bit 2-0 - Clock divider (r)
+pub const NR43_CHANNEL_4_FREQUENCY_AND_RANDOMNESS_ADDRESS: usize = 0xff22;
+
+/// NR44 Channel 4 control
+/// * Bit 7   - Trigger (1=Restart channel)  (Write Only)
+/// * Bit 6   - Sound Length enable          (Read/Write)
+/// * (1=Stop output when length in NR41 expires)
+pub const NR44_CHANNEL_4_CONTROL_ADDRESS: usize = 0xff23;
+
+/// Wave pattern ram
+/// * 16 bytes long, 'samples' 4 bits each
+pub const WAVE_PATTERN_RAM_START_ADDRESS: usize = 0xff30;
+
+/// Wave pattern ram
+/// * 16 bytes long, 'samples' 4 bits each
+pub const WAVE_PATTERN_RAM_END_ADDRESS: usize = 0xff3f;

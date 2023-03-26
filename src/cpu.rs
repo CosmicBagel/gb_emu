@@ -552,6 +552,25 @@ impl Cpu {
                 //the OAM memory, but i'd rather not emulate that
                 0xff
             }
+            NR11_CHANNEL1_LENGTH_DUTY_ADDRESS | NR21_CHANNEL2_LENGTH_DUTY_ADDRESS => {
+                // filtering out write only bits
+                self.mem[address] & 0b1100_0000
+            }
+            NR13_CHANNEL1_WAVELENGTH_LOW_ADDRESS
+            | NR23_CHANNEL2_WAVELENGTH_LOW_ADDRESS
+            | NR31_CHANNEL3_LENGTH_TIMER_ADDRESS
+            | NR33_CHANNEL3_WAVELENGTH_LOW_ADDRESS => 0x00,
+            //
+            NR14_CHANNEL1_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS
+            | NR24_CHANNEL2_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS
+            | NR34_CHANNEL3_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS => {
+                // filtering out write only bits
+                self.mem[address] & 0b0111_1000
+            }
+            NR44_CHANNEL_4_CONTROL_ADDRESS => {
+                // filtering out write only bits
+                self.mem[address] & 0b0111_1111
+            }
             _ => self.mem[address],
         }
     }
@@ -671,8 +690,61 @@ impl Cpu {
                 );
                 self.mem[address] = filtered_value;
             }
+            NR52_SOUND_ON_OFF_ADDRESS => {
+                if self.is_apu_active() {
+                    self.mem[address] = (value & 0b1000_0000) | self.mem[address];
+                }
+            }
+            NR51_SOUND_PANNING_ADDRESS | NR50_VOLUME_VIN_PANNING_ADDRESS => {
+                if self.is_apu_active() {
+                    self.mem[address] = value;
+                }
+            }
+            NR10_CHANNEL1_SWEEP_ADDRESS
+            | NR11_CHANNEL1_LENGTH_DUTY_ADDRESS
+            | NR12_CHANNEL1_VOLUME_ENVELOPE_ADDRESS
+            | NR13_CHANNEL1_WAVELENGTH_LOW_ADDRESS
+            | NR14_CHANNEL1_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS => {
+                if self.is_apu_active() {
+                    self.mem[address] = value;
+                }
+            }
+            NR21_CHANNEL2_LENGTH_DUTY_ADDRESS
+            | NR22_CHANNEL2_VOLUME_ENVELOPE_ADDRESS
+            | NR23_CHANNEL2_WAVELENGTH_LOW_ADDRESS
+            | NR24_CHANNEL2_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS => {
+                if self.is_apu_active() {
+                    self.mem[address] = value;
+                }
+            }
+            NR30_CHANNEL3_DAC_ENABLE_ADDRESS
+            | NR31_CHANNEL3_LENGTH_TIMER_ADDRESS
+            | NR32_CHANNEL3_OUTPUT_LEVEL_ADDRESS
+            | NR33_CHANNEL3_WAVELENGTH_LOW_ADDRESS
+            | NR34_CHANNEL3_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS => {
+                if self.is_apu_active() {
+                    self.mem[address] = value;
+                }
+            }
+            WAVE_PATTERN_RAM_START_ADDRESS..=WAVE_PATTERN_RAM_END_ADDRESS => {
+                if self.is_apu_active() {
+                    self.mem[address] = value;
+                }
+            }
+            NR41_CHANNEL4_LENGTH_TIMER_ADDRESS
+            | NR42_CHANNEL_4_VOLUME_ENVELOPE_ADDRESS
+            | NR43_CHANNEL_4_FREQUENCY_AND_RANDOMNESS_ADDRESS
+            | NR44_CHANNEL_4_CONTROL_ADDRESS => {
+                if self.is_apu_active() {
+                    self.mem[address] = value;
+                }
+            }
             _ => self.mem[address] = value,
         }
+    }
+
+    fn is_apu_active(&self) -> bool {
+        self.mem[NR52_SOUND_ON_OFF_ADDRESS] & 0b1000_0000 != 0
     }
 
     fn oam_dma(&mut self, start_address_high_byte: u8) {
