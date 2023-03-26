@@ -37,7 +37,8 @@ fn init_emulator() -> (Cpu, Ppu) {
 fn main() {
     SimpleLogger::new()
         .with_colors(true)
-        .with_level(log::LevelFilter::Trace)
+        .with_level(log::LevelFilter::Off)
+        .with_module_level("gb_emu", log::LevelFilter::Trace)
         .init()
         .unwrap();
     let (mut cpu, mut ppu) = init_emulator();
