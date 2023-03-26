@@ -13,6 +13,7 @@
         "instrs",
         "Joypad",
         "lcdc",
+        "LFSR",
         "nanos",
         "ocpd",
         "ocps",
