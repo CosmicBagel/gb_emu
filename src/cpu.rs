@@ -624,8 +624,11 @@ impl Cpu {
                 let current_lower_bits = self.mem[address] & 0b0000_0111;
                 let filtered_value = (value & 0b1111_1000) | current_lower_bits;
                 log::trace!(
-                    "({:#06x}) stat changed from {:#010b} to {:#010b} (unfiltered {:#010b})",
-                    self.pc, self.mem[address], filtered_value, value
+                    "({:#06x}) STAT changed from {:#010b} to {:#010b} (unfiltered {:#010b})",
+                    self.pc,
+                    self.mem[address],
+                    filtered_value,
+                    value
                 );
                 self.mem[address] = filtered_value;
             }
@@ -633,7 +636,10 @@ impl Cpu {
                 let is_vblank = self.mem[STAT_ADDRESS] & 0b11 == 1;
                 log::trace!(
                     "({:#06x}) LCDC changed from {:#010b} to {:#010b}, During VBlank?: {:?}",
-                    self.pc, self.mem[address], value, is_vblank
+                    self.pc,
+                    self.mem[address],
+                    value,
+                    is_vblank
                 );
                 self.mem[address] = value;
             }
@@ -646,52 +652,37 @@ impl Cpu {
                 }
             }
             TIMA_ADDRESS => {
-                log::trace!(
-                    "({:#06x}) TIMA changed from {} to {}",
-                    self.pc, self.mem[address], value
-                );
+                self.log_mem_change("TIMA", address, value);
                 self.mem[address] = value;
             }
             TAC_ADDRESS => {
-                log::trace!(
-                    "({:#06x}) TAC changed from {:#010b} to {:#010b}",
-                    self.pc, self.mem[address], value
-                );
+                self.log_mem_change("TAC", address, value);
                 self.mem[address] = value;
             }
             INTERRUPT_FLAG_ADDRESS => {
-                log::trace!(
-                    "({:#06x}) IF changed from {:#010b} to {:#010b}",
-                    self.pc, self.mem[address], value
-                );
+                self.log_mem_change("IF", address, value);
                 self.mem[address] = value;
             }
             INTERRUPT_ENABLE_ADDRESS => {
-                log::trace!(
-                    "({:#06x}) IE changed from {:#010b} to {:#010b}",
-                    self.pc, self.mem[address], value
-                );
+                self.log_mem_change("IE", address, value);
                 self.mem[address] = value;
             }
             SB_SERIAL_OUT_ADDRESS => {
-                log::trace!(
-                    "({:#06x}) SB changed from {:#010b} to {:#010b}",
-                    self.pc, self.mem[address], value
-                );
+                self.log_mem_change("SB", address, value);
                 self.mem[address] = value;
             }
             SC_SERIAL_CONTROL_ADDRESS => {
-                log::trace!(
-                    "({:#06x}) SC changed from {:#010b} to {:#010b}",
-                    self.pc, self.mem[address], value
-                );
+                self.log_mem_change("SC", address, value);
                 self.mem[address] = value;
             }
             JOYPAD_ADDRESS => {
                 let filtered_value = (value & 0b0011_0000) | self.mem[address];
                 log::trace!(
                     "({:#06x}) JOYPAD changed from {:#010b} to {:#010b} (unfiltered {:#010b})",
-                    self.pc, self.mem[address], filtered_value, value
+                    self.pc,
+                    self.mem[address],
+                    filtered_value,
+                    value
                 );
                 self.mem[address] = filtered_value;
             }
@@ -746,6 +737,16 @@ impl Cpu {
             }
             _ => self.mem[address] = value,
         }
+    }
+
+    fn log_mem_change(&self, name: &str, address: usize, new_value: u8) {
+        log::trace!(
+            "({:#06x}) {} changed from {:#010b} to {:#010b}",
+            self.pc,
+            name,
+            self.mem[address],
+            new_value
+        )
     }
 
     fn is_apu_active(&self) -> bool {
