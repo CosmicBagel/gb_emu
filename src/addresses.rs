@@ -1,3 +1,8 @@
+pub const ROM_BANK_00_START_ADDRESS: usize = 0x0000;
+pub const ROM_BANK_00_END_ADDRESS: usize = 0x3fff;
+pub const ROM_BANK_NN_START_ADDRESS: usize = 0x4000;
+pub const ROM_BANK_NN_END_ADDRESS: usize = 0x7fff;
+
 pub const INTERRUPT_ENABLE_ADDRESS: usize = 0xffff; // program allows interrupts
                                                     /*
                                                     Bit 0: VBlank   Interrupt Enable  (INT $40)  (1=Enable)

@@ -415,7 +415,7 @@ impl Cpu {
     }
 
     fn update_joypad(&mut self) {
-        //todo 
+        //todo
         self.mem[JOYPAD_ADDRESS] = (self.mem[JOYPAD_ADDRESS] & 0b0011_0000) | 0b0000_1111;
     }
 
@@ -609,6 +609,10 @@ impl Cpu {
         }
 
         match address {
+            //enforcing the read-only part of read-only memory
+            ROM_BANK_00_START_ADDRESS..=ROM_BANK_00_END_ADDRESS
+            | ROM_BANK_NN_START_ADDRESS..=ROM_BANK_NN_END_ADDRESS => {}
+            //writing to div ALWAYS causes it to reset to zero
             DIV_ADDRESS => {
                 self.mem[DIV_ADDRESS] = 0x00;
             }
