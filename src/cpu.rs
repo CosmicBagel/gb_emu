@@ -171,7 +171,7 @@ impl Cpu {
         }
 
         let cart_type = self.rom[CARTRIDGE_TYPE_ROM_ADDRESS];
-        
+
         log::info!("Cartridge Type: 0x{:x}", cart_type);
         if !SUPPORTED_MBC_TYPES.contains(&cart_type) {
             log::warn!("Cartridge Type 0x{:x} not supported", cart_type);
@@ -198,7 +198,8 @@ impl Cpu {
         if header_sum != header_checksum {
             log::warn!(
                 "header checksum failed (found: {:#02x} expected {:#02x})",
-                header_sum, header_checksum
+                header_sum,
+                header_checksum
             );
         } else {
             log::info!("Header checksum passed ({:#x})", header_sum);
@@ -207,7 +208,8 @@ impl Cpu {
         if global_sum != global_checksum {
             log::warn!(
                 "global checksum failed (found: {:#04x} expected {:#04x})",
-                global_sum, global_checksum
+                global_sum,
+                global_checksum
             );
         } else {
             log::info!("Global checksum passed ({:#04x})", global_sum);
@@ -2808,7 +2810,8 @@ PC: 0x{:04x}",
         let dest = ((self.read_mem(self.sp + 1) as usize) << 8) | self.read_mem(self.sp) as usize;
         log::trace!(
             "({:#06x}) returning from function (dest) {:#06x}",
-            self.pc, dest
+            self.pc,
+            dest
         );
         self.pc = dest;
         self.sp += 2;

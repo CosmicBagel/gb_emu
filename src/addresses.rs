@@ -140,9 +140,9 @@ pub const NR10_CHANNEL1_SWEEP_ADDRESS: usize = 0xff10;
 
 /// NR11 Channel 1 length timer & duty cycle
 /// * Bit 7-6 - Wave duty (Read/Write)
-///     * 0b00: 12.5 %	
-///     * 0b01: 25.0 %	
-///     * 0b10: 50.0 %	
+///     * 0b00: 12.5 %
+///     * 0b01: 25.0 %
+///     * 0b10: 50.0 %
 ///     * 0b11: 75.0 %
 /// * Bit 5-0 - Initial length timer (Write Only)
 pub const NR11_CHANNEL1_LENGTH_DUTY_ADDRESS: usize = 0xff11;
@@ -166,9 +166,9 @@ pub const NR14_CHANNEL1_WAVELENGTH_HIGH_AND_CONTROL_ADDRESS: usize = 0xff14;
 
 /// NR21 Channel 2 length timer & duty cycle
 /// * Bit 7-6 - Wave duty (Read/Write)
-///     * 0b00: 12.5 %	
-///     * 0b01: 25.0 %	
-///     * 0b10: 50.0 %	
+///     * 0b00: 12.5 %
+///     * 0b01: 25.0 %
+///     * 0b10: 50.0 %
 ///     * 0b11: 75.0 %
 /// * Bit 5-0 - Initial length timer (Write Only)
 pub const NR21_CHANNEL2_LENGTH_DUTY_ADDRESS: usize = 0xff16;

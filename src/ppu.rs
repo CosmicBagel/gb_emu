@@ -223,7 +223,10 @@ impl Ppu {
         Ppu::stat_flag_interrupt(cpu, StatInterrupt::VBlank);
         // normal interrupt
         let int_flag = cpu.read_hw_reg(INTERRUPT_FLAG_ADDRESS);
-        cpu.write_hw_reg(INTERRUPT_FLAG_ADDRESS, int_flag | InterruptFlags::VBlank as u8);
+        cpu.write_hw_reg(
+            INTERRUPT_FLAG_ADDRESS,
+            int_flag | InterruptFlags::VBlank as u8,
+        );
 
         self.current_mode_counter = 0;
         self.current_mode_oam_dma = false;
