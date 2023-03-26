@@ -3,6 +3,7 @@ use constants::*;
 use cpu::{Cpu, CpuStepResult};
 use pixels::{PixelsBuilder, SurfaceTexture};
 use ppu::Ppu;
+use simple_logger::SimpleLogger;
 use std::{env, thread, time};
 use winit::{
     dpi::LogicalSize,
@@ -22,7 +23,7 @@ fn init_emulator() -> (Cpu, Ppu) {
     let args: Vec<_> = env::args().collect();
     let filename = if args.len() < 2 {
         //this is to make debugging easier to deal with
-        println!("Using default rom file");
+        log::info!("Using default rom file");
         DEFAULT_ROM
     } else {
         args[1].as_str()
@@ -34,6 +35,11 @@ fn init_emulator() -> (Cpu, Ppu) {
 }
 
 fn main() {
+    SimpleLogger::new()
+        .with_colors(true)
+        .with_level(log::LevelFilter::Trace)
+        .init()
+        .unwrap();
     let (mut cpu, mut ppu) = init_emulator();
 
     let event_loop = EventLoop::new();
@@ -90,13 +96,13 @@ fn main() {
             }
 
             // if let Some(scale_factor) = input.scale_factor() {
-                //todo update scaling factor in GUI
+            //todo update scaling factor in GUI
             // }
 
             if let Some(size) = input.window_resized() {
                 //resize pixels and gui here
                 if let Err(err) = pixels.resize_surface(size.width, size.height) {
-                    println!("pixels.resize_surface() failed: {err}");
+                    log::error!("pixels.resize_surface() failed: {err}");
                     *control_flow = ControlFlow::Exit;
                     return;
                 }
@@ -125,16 +131,16 @@ fn main() {
                     ppu::PpuStepResult::Draw => {
                         //will be only triggered on Draw PPU response
                         window.request_redraw();
-                        thread::sleep(time::Duration::from_millis(0));
+                        thread::sleep(time::Duration::from_millis(200));
                         break;
                     }
                 }
 
                 // don't let the emulator hang in case of bug or something weird
                 if frame_cycles >= CLOCKS_PER_FRAME {
-                    println!("WARNING: Forcing frame draw!!!");
+                    log::warn!("Forcing frame draw!!!");
                     window.request_redraw();
-                    thread::sleep(time::Duration::from_millis(0));
+                    thread::sleep(time::Duration::from_millis(200));
                     break;
                 }
             }
@@ -191,12 +197,12 @@ fn main() {
                 });
 
                 if let Err(err) = render_result {
-                    println!("pixels.render() failed: {err}");
+                    log::error!("pixels.render() failed: {err}");
                     control_flow.set_exit();
                 }
             }
             Event::LoopDestroyed => {
-                println!("Total cycles emulated: {:}", total_cycles);
+                log::info!("Total cycles emulated: {:}", total_cycles);
             }
             _ => (),
         }

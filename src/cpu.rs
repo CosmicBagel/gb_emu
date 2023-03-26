@@ -171,9 +171,10 @@ impl Cpu {
         }
 
         let cart_type = self.rom[CARTRIDGE_TYPE_ROM_ADDRESS];
-        println!("Cartridge Type: 0x{:x}", cart_type);
+        
+        log::info!("Cartridge Type: 0x{:x}", cart_type);
         if !SUPPORTED_MBC_TYPES.contains(&cart_type) {
-            println!("Warning: Cartridge Type 0x{:x} not supported", cart_type);
+            log::warn!("Cartridge Type 0x{:x} not supported", cart_type);
         }
 
         let mut global_sum = 0u16;
@@ -195,21 +196,21 @@ impl Cpu {
         let header_checksum = self.rom[0x014d];
 
         if header_sum != header_checksum {
-            println!(
-                "Warning: header checksum failed (found: {:#02x} expected {:#02x})",
+            log::warn!(
+                "header checksum failed (found: {:#02x} expected {:#02x})",
                 header_sum, header_checksum
             );
         } else {
-            println!("Header checksum passed ({:#x})", header_sum);
+            log::info!("Header checksum passed ({:#x})", header_sum);
         }
 
         if global_sum != global_checksum {
-            println!(
-                "Warning: global checksum failed (found: {:#04x} expected {:#04x})",
+            log::warn!(
+                "global checksum failed (found: {:#04x} expected {:#04x})",
                 global_sum, global_checksum
             );
         } else {
-            println!("Global checksum passed ({:#04x})", global_sum);
+            log::info!("Global checksum passed ({:#04x})", global_sum);
         }
 
         //copy first memory block into position
@@ -295,7 +296,7 @@ impl Cpu {
                     // the cost of most instructions, additionally the spin wait loops used while waiting
                     // for OAM DMA to finish are usually tuned to be exactly 160 cycles before returning
                     self.is_oam_dma_active = false;
-                    println!("OAM DMA END");
+                    log::trace!("OAM DMA END");
                 }
             }
 
@@ -492,7 +493,7 @@ impl Cpu {
         address: InterruptAddresses,
         flag_mask: InterruptFlags,
     ) {
-        println!("Firing interrupt {:?}", address);
+        log::trace!("Firing interrupt {:?}", address);
         //0 out the interrupt flag bit
         self.mem[INTERRUPT_FLAG_ADDRESS] ^= flag_mask as u8;
         self.interrupt_master_enable = false;
@@ -536,7 +537,7 @@ impl Cpu {
                 HIGH_RAM_START_ADDRESS..=HIGH_RAM_END_ADDRESS => self.mem[address],
                 OAM_DMA_ADDRESS => self.mem[address],
                 _ => {
-                    println!(
+                    log::trace!(
                         "({:x}) warning: program attempted to read invalid memory during OAM DMA",
                         self.pc
                     );
@@ -602,7 +603,7 @@ impl Cpu {
                     self.mem[address] = value;
                 }
                 _ => {
-                    println!("({:#06x}) warning: program attempted to write to invalid memory during OAM DMA", self.pc);
+                    log::trace!("({:#06x}) warning: program attempted to write to invalid memory during OAM DMA", self.pc);
                 }
             }
             return;
@@ -622,7 +623,7 @@ impl Cpu {
                 //bottom three bits (0-2) are read only
                 let current_lower_bits = self.mem[address] & 0b0000_0111;
                 let filtered_value = (value & 0b1111_1000) | current_lower_bits;
-                println!(
+                log::trace!(
                     "({:#06x}) stat changed from {:#010b} to {:#010b} (unfiltered {:#010b})",
                     self.pc, self.mem[address], filtered_value, value
                 );
@@ -630,14 +631,14 @@ impl Cpu {
             }
             LCDC_ADDRESS => {
                 let is_vblank = self.mem[STAT_ADDRESS] & 0b11 == 1;
-                println!(
+                log::trace!(
                     "({:#06x}) LCDC changed from {:#010b} to {:#010b}, During VBlank?: {:?}",
                     self.pc, self.mem[address], value, is_vblank
                 );
                 self.mem[address] = value;
             }
             OAM_DMA_ADDRESS => {
-                println!("({:#06x}) Writing to OAM DMA 0x{:x}", self.pc, value);
+                log::trace!("({:#06x}) Writing to OAM DMA 0x{:x}", self.pc, value);
                 if !self.is_oam_dma_active {
                     self.oam_dma(value);
                 } else {
@@ -645,42 +646,42 @@ impl Cpu {
                 }
             }
             TIMA_ADDRESS => {
-                println!(
+                log::trace!(
                     "({:#06x}) TIMA changed from {} to {}",
                     self.pc, self.mem[address], value
                 );
                 self.mem[address] = value;
             }
             TAC_ADDRESS => {
-                println!(
+                log::trace!(
                     "({:#06x}) TAC changed from {:#010b} to {:#010b}",
                     self.pc, self.mem[address], value
                 );
                 self.mem[address] = value;
             }
             INTERRUPT_FLAG_ADDRESS => {
-                println!(
+                log::trace!(
                     "({:#06x}) IF changed from {:#010b} to {:#010b}",
                     self.pc, self.mem[address], value
                 );
                 self.mem[address] = value;
             }
             INTERRUPT_ENABLE_ADDRESS => {
-                println!(
+                log::trace!(
                     "({:#06x}) IE changed from {:#010b} to {:#010b}",
                     self.pc, self.mem[address], value
                 );
                 self.mem[address] = value;
             }
             SB_SERIAL_OUT_ADDRESS => {
-                println!(
+                log::trace!(
                     "({:#06x}) SB changed from {:#010b} to {:#010b}",
                     self.pc, self.mem[address], value
                 );
                 self.mem[address] = value;
             }
             SC_SERIAL_CONTROL_ADDRESS => {
-                println!(
+                log::trace!(
                     "({:#06x}) SC changed from {:#010b} to {:#010b}",
                     self.pc, self.mem[address], value
                 );
@@ -688,7 +689,7 @@ impl Cpu {
             }
             JOYPAD_ADDRESS => {
                 let filtered_value = (value & 0b0011_0000) | self.mem[address];
-                println!(
+                log::trace!(
                     "({:#06x}) JOYPAD changed from {:#010b} to {:#010b} (unfiltered {:#010b})",
                     self.pc, self.mem[address], filtered_value, value
                 );
@@ -754,10 +755,10 @@ impl Cpu {
     fn oam_dma(&mut self, start_address_high_byte: u8) {
         //Source:      $XX00-$XX9F   ;XX = $00 to $DF
         //Destination: $FE00-$FE9F
-        println!("({:#06x}) OAM DMA TRIGGERED", self.pc);
+        log::trace!("({:#06x}) OAM DMA TRIGGERED", self.pc);
         if start_address_high_byte > 0xdf {
             // invalid start address, do not execute oam dma
-            println!(
+            log::trace!(
                 "({:#06x}) warning: program attempted invalid oam dma (invalid start address)",
                 self.pc
             );
@@ -1180,14 +1181,14 @@ PC: 0x{:04x}",
     //0xc3
     fn jump(&mut self, _: u8) -> CycleCount {
         let target = ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
-        println!("({:#06x}) jumping to {:#06x}", self.pc, target);
+        log::trace!("({:#06x}) jumping to {:#06x}", self.pc, target);
         self.pc = target as usize;
         16
     }
 
     //0xe9
     fn jump_hl(&mut self, _: u8) -> CycleCount {
-        println!("({:#06x}) jumping to {:#06x}", self.pc, self.get_hl());
+        log::trace!("({:#06x}) jumping to {:#06x}", self.pc, self.get_hl());
         self.pc = self.get_hl() as usize;
         4
     }
@@ -1227,7 +1228,7 @@ PC: 0x{:04x}",
         if condition {
             let target =
                 ((self.read_mem(self.pc + 2) as u16) << 8) | self.read_mem(self.pc + 1) as u16;
-            println!("({:#06x}) jumping to {:#06x}", self.pc, target);
+            log::trace!("({:#06x}) jumping to {:#06x}", self.pc, target);
             self.pc = target as usize;
             16
         } else {
@@ -2733,7 +2734,7 @@ PC: 0x{:04x}",
 
     // handles common call functionality
     fn helper_call(&mut self, target: u16, return_pc: usize) {
-        println!("({:#06x}) calling function at {:#06x}", self.pc, target);
+        log::trace!("({:#06x}) calling function at {:#06x}", self.pc, target);
         let lesser_pc = return_pc as u8;
         let major_pc = (return_pc >> 8) as u8;
 
@@ -2804,7 +2805,7 @@ PC: 0x{:04x}",
     // handles common return functionality
     fn helper_return(&mut self) {
         let dest = ((self.read_mem(self.sp + 1) as usize) << 8) | self.read_mem(self.sp) as usize;
-        println!(
+        log::trace!(
             "({:#06x}) returning from function (dest) {:#06x}",
             self.pc, dest
         );
@@ -2860,7 +2861,7 @@ PC: 0x{:04x}",
 
     //0xf3
     fn disable_interrupt(&mut self, _: u8) -> CycleCount {
-        println!("({:#06x}) disabling IME", self.pc);
+        log::trace!("({:#06x}) disabling IME", self.pc);
         self.interrupt_master_enable = false;
         self.ei_delay = 0;
         self.pc += 1;
@@ -2869,7 +2870,7 @@ PC: 0x{:04x}",
 
     //0xfb
     fn enable_interrupt(&mut self, _: u8) -> CycleCount {
-        println!("({:#06x}) enabling IME", self.pc);
+        log::trace!("({:#06x}) enabling IME", self.pc);
         self.ei_delay = 2;
         self.pc += 1;
         4
