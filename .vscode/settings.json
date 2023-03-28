@@ -30,6 +30,7 @@
         "vblank",
         "VRAM",
         "vsync",
+        "wasd",
         "wgpu",
         "winit"
     ]
