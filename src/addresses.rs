@@ -45,17 +45,17 @@ pub const STAT_ADDRESS: usize = 0xff41; //LCD Stat
                                                   2: Searching OAM
                                                   3: Transferring Data to LCD Controller
                                         */
-pub const LCDC_ADDRESS: usize = 0xff40; //LCD Control
-                                        /*
-                                        7 LCD and PPU enable             0=Off, 1=On
-                                        6 Window tile map area           0=9800-9BFF, 1=9C00-9FFF
-                                        5 Window enable                  0=Off, 1=On
-                                        4 BG and Window tile data area   0=8800-97FF, 1=8000-8FFF
-                                        3 BG tile map area               0=9800-9BFF, 1=9C00-9FFF
-                                        2 OBJ size                       0=8x8, 1=8x16
-                                        1 OBJ enable                     0=Off, 1=On
-                                        0 BG and Window enable/priority  0=Off, 1=On
-                                        */
+
+/// LCD Control
+/// - 7 LCD and PPU enable             0=Off, 1=On
+/// - 6 Window tile map area           0=9800-9BFF, 1=9C00-9FFF
+/// - 5 Window enable                  0=Off, 1=On
+/// - 4 BG and Window tile data area   0=8800-97FF, 1=8000-8FFF
+/// - 3 BG tile map area               0=9800-9BFF, 1=9C00-9FFF
+/// - 2 OBJ size                       0=8x8, 1=8x16
+/// - 1 OBJ enable                     0=Off, 1=On
+/// - 0 BG and Window enable/priority  0=Off, 1=On
+pub const LCDC_ADDRESS: usize = 0xff40; 
 
 pub const OAM_TABLE_ADDRESS: usize = 0xfe00; //Sprite table, max 40 sprites of 4 bytes each
                                              /*

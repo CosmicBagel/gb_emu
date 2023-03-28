@@ -1,4 +1,6 @@
 //ppu = picture processing unit
+use std::cmp::min;
+
 use crate::cpu::Cpu;
 use crate::cpu::InterruptFlags;
 
@@ -53,11 +55,22 @@ pub struct Ppu {
     debug_mode3_cycles: u32,
 }
 
+#[derive(Clone, Copy)]
+pub enum ObjPalette {
+    OBP0,
+    OBP1,
+}
+
+///Object Attribute Memory
 struct OAM {
     y_position: u8,
     x_position: u8,
     tile_index: u8,
-    attributes: u8,
+    bg_over_obj_flag: bool,
+    y_flip: bool,
+    x_flip: bool,
+    palette: ObjPalette,
+    oam_order: u8,
     /* attribute bits
     Bit7   BG and Window over OBJ (0=No, 1=BG and Window colors 1-3 over the OBJ)
     Bit6   Y flip          (0=Normal, 1=Vertically mirrored)
@@ -66,6 +79,25 @@ struct OAM {
     Bit3   Tile VRAM-Bank  **CGB Mode Only**     (0=Bank 0, 1=Bank 1)
     Bit2-0 Palette number  **CGB Mode Only**     (OBP0-7) */
 }
+
+type ColorId = u8;
+type BgFragment = ColorId;
+
+#[derive(Clone, Copy)]
+struct ObjFragment {
+    color_id: u8,
+    palette: ObjPalette,
+    bg_over_obj_flag: bool,
+    oam_order: u8,
+    x_pos: u8,
+}
+const BLANK_OBJ_FRAGMENT: ObjFragment = ObjFragment {
+    color_id: 0,
+    palette: ObjPalette::OBP0,
+    bg_over_obj_flag: false,
+    oam_order: 255,
+    x_pos: 255,
+};
 
 #[derive(Clone, Copy)]
 pub enum PixelShade {
@@ -350,30 +382,25 @@ impl Ppu {
                 //determine sprites effecting line
                 let mut offset = 0x00;
                 let ly = cpu.read_hw_reg(LY_ADDRESS);
+                let mut oam_order = 0u8;
                 for _ in 0..OAM_TABLE_SIZE {
                     const OAM_BYTE_SIZE: usize = 4;
-                    let oam = OAM {
-                        y_position: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset),
-                        x_position: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 1),
-                        tile_index: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 2),
-                        attributes: cpu.read_hw_reg(OAM_TABLE_ADDRESS + offset + 3),
-                    };
-
-                    if ly >= oam.y_position && ly - oam.y_position < sprite_size {
+                    let oam = self.decode_oam(cpu, OAM_TABLE_ADDRESS + offset, oam_order);
+                    //mimicking the OBJ canvas which starts at [-8, -16], so LY = 0 lines up with
+                    //OBJ canvas y = 16 (the point of this canvas offset is so that
+                    //OBJs set to [0,0] are effectively disabled for both 8x8 and 8x16 sprites)
+                    let adjusted_ly = ly + OBJ_CANVAS_Y_OFFSET;
+                    if adjusted_ly >= oam.y_position && adjusted_ly - oam.y_position < sprite_size {
                         // on our line
                         self.current_line_sprites.push(oam);
+                        oam_order += 1;
+                        if self.current_line_sprites.len() == 10 {
+                            break;
+                        }
                     }
 
                     offset += OAM_BYTE_SIZE;
                 }
-
-                // sort by x postilion least to greatest (sort the sprites left to right)
-                self.current_line_sprites
-                    .sort_by(|a, b| b.x_position.cmp(&a.x_position));
-                // only 10 sprites per line (truncate sprites on line after sprite 10 left to right)
-                self.current_line_sprites.truncate(10);
-                // draw sprites will be drawn right to left
-                self.current_line_sprites.reverse();
             }
         } else {
             self.debug_mode2_cycles += cycles;
@@ -452,19 +479,20 @@ impl Ppu {
             self.mode_func = Ppu::start_mode0_hblank;
 
             let ly = cpu.read_hw_reg(LY_ADDRESS) as usize;
-            let mut line = [PixelShade::White; GB_WIDTH];
 
+            let mut bg_fragments = [0; GB_WIDTH];
             if self.lcdc_get_bg_and_window_enable(cpu) {
-                let bg_line = self.render_bg_line(cpu, ly);
-
-                //temp copy bg_line to line
-                line = bg_line;
+                bg_fragments = self.compose_bg_line(cpu, ly);
             }
 
+            let mut obj_fragments = [BLANK_OBJ_FRAGMENT; GB_WIDTH];
             // if oam dma ran at all during this line, don't draw __SPRITE__ pixels to it
-            if !self.current_mode_oam_dma {
-                // todo draw line, but not sprites idk
+            if !self.current_mode_oam_dma && self.lcdc_get_obj_enable(cpu) {
+                obj_fragments = self.compose_obj_line(cpu, ly);
             }
+
+            // render the line out using bg_fragments and obj_fragments
+            let line = self.render_line(&bg_fragments, &obj_fragments);
 
             //copy line to self.pixels for ly
             let base = ly * GB_WIDTH;
@@ -478,12 +506,92 @@ impl Ppu {
         (remainder, PpuStepResult::NoAction)
     }
 
-    fn render_bg_line(&mut self, cpu: &mut Cpu, ly: usize) -> [PixelShade; GB_WIDTH] {
+    fn compose_obj_line(&self, cpu: &Cpu, ly: usize) -> [ObjFragment; GB_WIDTH] {
+        let mut obj_line = [BLANK_OBJ_FRAGMENT; GB_WIDTH];
+        let scx = cpu.read_hw_reg(SCX_ADDRESS);
+
+        for obj in &self.current_line_sprites {
+            if obj.x_position == 0 {
+                // objects, with obj canvas position 0, are not visible
+                continue;
+            }
+            // the obj canvas x offset is the same as the width of a sprite
+            // so if scx is greater than the x pos, then object isn't visible
+            let is_offscreen_left = scx > obj.x_position;
+            let is_offscreen_right = obj.x_position > scx + GB_WIDTH as u8 + OBJ_CANVAS_X_OFFSET;
+            if is_offscreen_left || is_offscreen_right {
+                continue;
+            }
+            let obj_tile_line = self.obj_line_fetch(cpu, ly, obj);
+            let obj_line_start = obj.x_position - scx - OBJ_CANVAS_X_OFFSET;
+            let obj_line_end = min(GB_WIDTH as u8, obj_line_start + TILE_SIZE as u8);
+
+            for (obj_tile_line_index, line_index) in (obj_line_start..obj_line_end).enumerate() {
+                if obj_tile_line[obj_tile_line_index] == OBJ_TRANSPARENT_COLOR_ID {
+                    //color id is __transparent__, skip this pixel
+                    continue;
+                }
+                let obj_fragment = &mut obj_line[line_index as usize];
+
+                // lowest x_position takes priority
+                // if x_positions are the same, then use oam_order
+                let overlap_condition =
+                    obj.x_position == obj_fragment.x_pos && obj.oam_order < obj_fragment.oam_order;
+                let lower_x_condition = obj.x_position < obj_fragment.x_pos;
+
+                let has_priority = lower_x_condition || overlap_condition;
+
+                if has_priority {
+                    // has priority, so overwrite the existing pixel
+                    obj_fragment.color_id = obj_tile_line[obj_tile_line_index];
+                    obj_fragment.x_pos = obj.x_position;
+                    obj_fragment.palette = obj.palette;
+                    obj_fragment.oam_order = obj.oam_order;
+                    obj_fragment.bg_over_obj_flag = obj.bg_over_obj_flag;
+                }
+            }
+        }
+        obj_line
+    }
+
+    fn obj_line_fetch(&self, cpu: &Cpu, ly: usize, obj: &OAM) -> [ColorId; 8] {
+        let all_objs_tall = self.lcdc_get_obj_size(cpu);
+
+        // get tile
+        let sprite_ly = (ly as u8 + OBJ_CANVAS_Y_OFFSET) - obj.y_position;
+        let (offset, tile_ly) = if all_objs_tall && sprite_ly >= 8 {
+            let offset = (obj.tile_index * 16) as usize;
+            let tile_ly = sprite_ly;
+            (offset, tile_ly)
+        } else {
+            let offset = ((obj.tile_index + 1) * 16) as usize;
+            let tile_ly = sprite_ly - 8;
+            (offset, tile_ly)
+        };
+
+        // extract line
+        let tile = Ppu::tile_fetch(
+            cpu,
+            TILE_DATA_BLOCK_0_ADDRESS + offset,
+            obj.x_flip,
+            obj.y_flip,
+        );
+
+        // prepare the tile line array
+        let line_start = tile_ly as usize * 8;
+        let mut tile_line = [0u8; 8];
+        for i in 0..8 {
+            tile_line[i] = tile[line_start + i];
+        }
+        tile_line
+    }
+
+    fn compose_bg_line(&self, cpu: &Cpu, ly: usize) -> [BgFragment; GB_WIDTH] {
         // do background
         let scx = cpu.read_hw_reg(SCX_ADDRESS) as usize;
         let scy = cpu.read_hw_reg(SCY_ADDRESS) as usize;
 
-        let mut bg_line = [PixelShade::White; GB_WIDTH];
+        let mut bg_line = [0; GB_WIDTH];
 
         let tile_map_y: usize = ((scy + ly) & 0xff) / TILE_SIZE;
         let tile_y_offset: usize = (scy + ly) % TILE_SIZE;
@@ -534,13 +642,7 @@ impl Ppu {
         cpu.read_hw_reg(base_address + offset) as usize
     }
 
-    fn bg_tile_fetch(&self, cpu: &Cpu, tile_id: usize) -> [PixelShade; TILE_SIZE * TILE_SIZE] {
-        let bgp = cpu.read_hw_reg(BGP_ADDRESS);
-        let shade_0 = PixelShade::from(bgp & 0b11);
-        let shade_1 = PixelShade::from((bgp >> 2) & 0b11);
-        let shade_2 = PixelShade::from((bgp >> 4) & 0b11);
-        let shade_3 = PixelShade::from((bgp >> 6) & 0b11);
-
+    fn bg_tile_fetch(&self, cpu: &Cpu, tile_id: usize) -> [ColorId; TILE_SIZE * TILE_SIZE] {
         let address = if self.lcdc_get_bg_and_window_tile_data_area(cpu) {
             TILE_DATA_BLOCK_0_ADDRESS + (tile_id * TILE_BYTES)
         } else {
@@ -553,18 +655,7 @@ impl Ppu {
 
         let tile_color_ids = Ppu::tile_fetch(cpu, address, false, false);
 
-        let mut tile_pixels = [PixelShade::White; TILE_SIZE * TILE_SIZE];
-        for (ind, color_id) in tile_color_ids.iter().enumerate() {
-            tile_pixels[ind] = match color_id {
-                0 => shade_0,
-                1 => shade_1,
-                2 => shade_2,
-                3 => shade_3,
-                _ => shade_0,
-            }
-        }
-
-        tile_pixels
+        tile_color_ids
     }
 
     fn tile_fetch(
@@ -572,7 +663,7 @@ impl Ppu {
         tile_address: usize,
         mirror_x: bool,
         mirror_y: bool,
-    ) -> [u8; TILE_SIZE * TILE_SIZE] {
+    ) -> [ColorId; TILE_SIZE * TILE_SIZE] {
         let mut tile_bytes = [0u8; TILE_BYTES];
         for ind in 0..TILE_BYTES {
             tile_bytes[ind] = cpu.read_hw_reg(tile_address + ind);
@@ -616,8 +707,57 @@ impl Ppu {
         color_ids
     }
 
+    fn render_line(
+        &self,
+        bg_fragments: &[BgFragment],
+        obj_fragments: &[ObjFragment],
+    ) -> [PixelShade; GB_WIDTH] {
+        // this is where bg_over_obj comes into play
+
+        // let bgp = cpu.read_hw_reg(BGP_ADDRESS);
+        // let shade_0 = PixelShade::from(bgp & 0b11);
+        // let shade_1 = PixelShade::from((bgp >> 2) & 0b11);
+        // let shade_2 = PixelShade::from((bgp >> 4) & 0b11);
+        // let shade_3 = PixelShade::from((bgp >> 6) & 0b11);
+
+        // let mut tile_pixels = [PixelShade::White; TILE_SIZE * TILE_SIZE];
+        // for (ind, color_id) in tile_color_ids.iter().enumerate() {
+        //     tile_pixels[ind] = match color_id {
+        //         0 => shade_0,
+        //         1 => shade_1,
+        //         2 => shade_2,
+        //         3 => shade_3,
+        //         _ => shade_0,
+        //     }
+        // }
+        todo!("render line functionality");
+    }
+
     pub fn get_pixels(&self) -> [PixelShade; GB_WIDTH * GB_HEIGHT] {
         self.pixels
+    }
+
+    fn decode_oam(&self, cpu: &Cpu, address: usize, oam_order: u8) -> OAM {
+        let attributes_byte = cpu.read_hw_reg(address + 3);
+        let bg_over_obj = attributes_byte & 0b1000_0000 != 0;
+        let y_flip = attributes_byte & 0b0100_0000 != 0;
+        let x_flip = attributes_byte & 0b0010_0000 != 0;
+        let palette_number = if attributes_byte & 0b0001_0000 != 0 {
+            ObjPalette::OBP1
+        } else {
+            ObjPalette::OBP0
+        };
+
+        OAM {
+            y_position: cpu.read_hw_reg(address),
+            x_position: cpu.read_hw_reg(address + 1),
+            tile_index: cpu.read_hw_reg(address + 2),
+            bg_over_obj_flag: bg_over_obj,
+            y_flip,
+            x_flip,
+            palette: palette_number,
+            oam_order,
+        }
     }
 
     /** This indicates whether the LCD is on and the PPU is active. When false both off,
@@ -659,9 +799,9 @@ impl Ppu {
     }
 
     /** Indicates whether sprites are displayed or not. */
-    // fn lcdc_get_obj_enable(&self, cpu: &Cpu) -> bool {
-    //     cpu.read_hw_reg(LCDC_ADDRESS) & 0b0000_0010 != 0
-    // }
+    fn lcdc_get_obj_enable(&self, cpu: &Cpu) -> bool {
+        cpu.read_hw_reg(LCDC_ADDRESS) & 0b0000_0010 != 0
+    }
 
     /** When false, both background and window become blank (white), and the Window Display is
      * ignored in that case. Only Sprites may still be displayed (if enabled). */

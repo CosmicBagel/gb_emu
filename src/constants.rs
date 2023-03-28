@@ -13,6 +13,12 @@ pub const WINDOW_HEIGHT: u32 = 720;
 pub const WINDOW_TITLE: &str = "gb_emu";
 
 pub const OAM_TABLE_SIZE: usize = 40;
+/// obj canvas is offset from the screen by -8, -16, this means an obj at 0,0 is offscreen
+/// and an obj 0,2 has two pixels offscreen at LY = 0 and LY = 1. 
+pub const OBJ_CANVAS_Y_OFFSET: u8 = 16;
+pub const OBJ_CANVAS_X_OFFSET: u8 = 8;
+
+pub const OBJ_TRANSPARENT_COLOR_ID: u8 = 0b00;
 
 pub const WHITE_SHADE: [u8; 4] = [0xff, 0xff, 0xff, 0xff];
 pub const LIGHT_SHADE: [u8; 4] = [0xaa, 0xaa, 0xaa, 0xff];
