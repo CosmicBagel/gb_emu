@@ -12,12 +12,12 @@ winit_input_helper = "0.14.0"
 gilrs = "0.10.1"
 pixels = "0.12.0"
 
-egui = "*"
-egui-wgpu = "*"
-egui-winit = { version = "*", default-features = false, features = ["links"]}
-log = "*"
+# egui = "*"
+# egui-wgpu = "*"
+# egui-winit = { version = "*", default-features = false, features = ["links"]}
+log = "0.4.17"
 
 [dependencies.simple_logger]
-version = "*"
+version = "4.1.0"
 default-features = false
 features = ["colors"]
