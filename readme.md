@@ -9,9 +9,8 @@ cargo build
 ```
 
 Running:  
-(Will look for `cpu_instrs.gb` in execution path)
 ```shell
-cargo run
+cargo run cpu_instrs.gb
 ```
 
 Keybindings:
