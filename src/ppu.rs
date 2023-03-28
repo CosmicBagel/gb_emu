@@ -560,12 +560,12 @@ impl Ppu {
         // get tile
         let sprite_ly = (ly as u8 + OBJ_CANVAS_Y_OFFSET) - obj.y_position;
         let (offset, tile_ly) = if all_objs_tall && sprite_ly >= 8 {
-            let offset = (obj.tile_index * 16) as usize;
-            let tile_ly = sprite_ly;
+            let offset = (obj.tile_index as usize + 1) * 16;
+            let tile_ly = sprite_ly - 8;
             (offset, tile_ly)
         } else {
-            let offset = ((obj.tile_index + 1) * 16) as usize;
-            let tile_ly = sprite_ly - 8;
+            let offset = obj.tile_index as usize * 16;
+            let tile_ly = sprite_ly;
             (offset, tile_ly)
         };
 
@@ -673,7 +673,7 @@ impl Ppu {
         for pair_ind in 0..TILE_SIZE {
             let ind = if mirror_y {
                 //14 - (pair_ind * 2); bottom-to-top indexing
-                (TILE_SIZE - TILE_BYTES_PER_ROW) - (pair_ind * TILE_BYTES_PER_ROW)
+                (TILE_SIZE * TILE_BYTES_PER_ROW - TILE_BYTES_PER_ROW) - (pair_ind * TILE_BYTES_PER_ROW)
             } else {
                 //pair_ind * 2; top-to-bottom indexing
                 pair_ind * TILE_BYTES_PER_ROW
