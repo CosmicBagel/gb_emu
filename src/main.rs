@@ -1,7 +1,7 @@
-use addresses::{INTERRUPT_FLAG_ADDRESS, JOYPAD_ADDRESS};
+use addresses::INTERRUPT_FLAG_ADDRESS;
 use constants::*;
 // use core::time;
-use cpu::{Cpu, CpuStepResult};
+use cpu::{Cpu, CpuStepResult, InputState};
 use pixels::{PixelsBuilder, SurfaceTexture};
 use ppu::Ppu;
 use simple_logger::SimpleLogger;
@@ -19,25 +19,6 @@ mod constants;
 mod cpu;
 // mod gui;
 mod ppu;
-
-enum JoypadBits {
-    DownOrStart = 0b0000_1000,
-    UpOrSelect = 0b0000_0100,
-    LeftOrB = 0b0000_0010,
-    RightOrA = 0b0000_0001,
-}
-
-struct InputState {
-    a_button_was_pressed: bool,
-    up: bool,
-    down: bool,
-    left: bool,
-    right: bool,
-    start: bool,
-    select: bool,
-    b: bool,
-    a: bool,
-}
 
 fn init_emulator() -> (Cpu, Ppu) {
     let args: Vec<_> = env::args().collect();
@@ -88,18 +69,6 @@ fn main() {
         pixels
     };
 
-    let mut input_state = InputState {
-        a_button_was_pressed: false,
-        up: false,
-        down: false,
-        left: false,
-        right: false,
-        start: false,
-        select: false,
-        b: false,
-        a: false,
-    };
-
     //**timing stuff**
     //4.194304 MHz
     //238.4185791015625 nanoseconds per cycle (ns)
@@ -107,12 +76,16 @@ fn main() {
     //20972 is about 5ms -> we'll use this as cycles per sleep
     //1 nop takes 4 cycles
     // let cycle_duration = time::Duration::from_nanos(238);
+    //target is 16.742706298828125ms
+    let target_loop_duration = time::Duration::from_nanos(16742706);
+    let mut turbo = false;
     let cycles_per_yield = 20_000u32;
     let mut cycle_count_since_last_yield = 0u32;
 
     let mut is_gui_active = IS_GUI_ACTIVE_DEFAULT;
 
     event_loop.run(move |event, _, control_flow| {
+        let start_time = time::Instant::now();
         //poll mode allows us to choose when to render out an image, as well as how long to sleep
         //in between loop cycles
         control_flow.set_poll();
@@ -122,6 +95,8 @@ fn main() {
             if input.key_pressed(VirtualKeyCode::Escape) {
                 is_gui_active = !is_gui_active;
             }
+
+            turbo = input.held_shift();
 
             if input.close_requested() {
                 control_flow.set_exit();
@@ -140,13 +115,18 @@ fn main() {
                 }
             }
 
-            handle_keyboard_input(&input, &mut input_state);
+            //reset before input is checked again
+            cpu.input_state.a_button_was_pressed = false;
+            handle_keyboard_input(&input, &mut cpu.input_state);
+            //todo gamepad input here
+            update_joypad_interrupt(&mut cpu);
+
+            //initial joypad update (will also be updated when JOYPAD register is written to)
+            cpu.update_joypad();
 
             //process emulator cycles until a frame is ready
             let mut frame_cycles = 0;
             loop {
-                update_joypad(&mut cpu, &mut input_state);
-
                 let cycle_cost;
                 match cpu.do_step() {
                     CpuStepResult::Stopped => {
@@ -164,16 +144,14 @@ fn main() {
                     ppu::PpuStepResult::Draw => {
                         //will be only triggered on Draw PPU response
                         window.request_redraw();
-                        thread::sleep(time::Duration::from_millis(10));
                         break;
                     }
                 }
 
                 // don't let the emulator hang in case of bug or something weird
                 if frame_cycles >= CLOCKS_PER_FRAME {
-                    log::warn!("Forcing frame draw!!!");
+                    log::warn!("Forcing frame draw!!! ppu should be triggering a frame");
                     window.request_redraw();
-                    thread::sleep(time::Duration::from_millis(10));
                     break;
                 }
             }
@@ -233,6 +211,15 @@ fn main() {
                     log::error!("pixels.render() failed: {err}");
                     control_flow.set_exit();
                 }
+
+                if !turbo {
+                    let elapsed = time::Instant::now() - start_time;
+                    if elapsed < target_loop_duration {
+                        thread::sleep(target_loop_duration - elapsed);
+                    } else {
+                        log::warn!("Slow update: {:?}", elapsed.as_millis());
+                    }
+                }
             }
             Event::LoopDestroyed => {}
             _ => (),
@@ -240,73 +227,8 @@ fn main() {
     });
 }
 
-fn update_joypad(cpu: &mut Cpu, input_state: &mut InputState) {
-    //todo: fetch joypad input here (keyboard or controller possibly) => update interrupts
-    // Bit 7 - Not used
-    // Bit 6 - Not used
-    // Bit 5 - P15 Select Action buttons    (0=Select)
-    // Bit 4 - P14 Select Direction buttons (0=Select)
-    // Bit 3 - P13 Input: Down  or Start    (0=Pressed) (Read Only)
-    // Bit 2 - P12 Input: Up    or Select   (0=Pressed) (Read Only)
-    // Bit 1 - P11 Input: Left  or B        (0=Pressed) (Read Only)
-    // Bit 0 - P10 Input: Right or A        (0=Pressed) (Read Only)
-
-    //get joypad state, reset out current 'pressed' states, we'll refresh these
-    //1 = __not__ pressed, 0 = pressed
-    let mut joypad_state = cpu.read_hw_reg(JOYPAD_ADDRESS) & 0b0011_0000;
-    joypad_state |= 0b0000_1111;
-    let joypad_matrix_select = joypad_state >> 4;
-    match joypad_matrix_select {
-        0b01 => {
-            //action buttons
-            if input_state.a {
-                joypad_state ^= JoypadBits::RightOrA as u8;
-            }
-            if input_state.b {
-                joypad_state ^= JoypadBits::LeftOrB as u8;
-            }
-            if input_state.select {
-                joypad_state ^= JoypadBits::UpOrSelect as u8;
-            }
-            if input_state.start {
-                joypad_state ^= JoypadBits::DownOrStart as u8;
-            }
-        }
-        0b10 => {
-            //direction buttons
-            if input_state.right {
-                joypad_state ^= JoypadBits::RightOrA as u8;
-            }
-            if input_state.left {
-                joypad_state ^= JoypadBits::LeftOrB as u8;
-            }
-            if input_state.up {
-                joypad_state ^= JoypadBits::UpOrSelect as u8;
-            }
-            if input_state.down {
-                joypad_state ^= JoypadBits::DownOrStart as u8;
-            }
-        }
-        0b11 => {
-            // I guess if you're just looking for any input?
-            if input_state.right | input_state.a {
-                joypad_state ^= JoypadBits::RightOrA as u8;
-            }
-            if input_state.left | input_state.b {
-                joypad_state ^= JoypadBits::LeftOrB as u8;
-            }
-            if input_state.up | input_state.select {
-                joypad_state ^= JoypadBits::UpOrSelect as u8;
-            }
-            if input_state.down | input_state.start {
-                joypad_state ^= JoypadBits::DownOrStart as u8;
-            }
-        }
-        _ => {}
-    }
-    cpu.write_hw_reg(JOYPAD_ADDRESS, joypad_state);
-    if input_state.a_button_was_pressed {
-        input_state.a_button_was_pressed = false;
+fn update_joypad_interrupt(cpu: &mut Cpu) {
+    if cpu.input_state.a_button_was_pressed {
         let int_flags = cpu.read_hw_reg(INTERRUPT_FLAG_ADDRESS);
         cpu.write_hw_reg(INTERRUPT_FLAG_ADDRESS, int_flags | 0b0001_0000);
     }

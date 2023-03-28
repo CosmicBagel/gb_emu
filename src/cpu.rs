@@ -30,9 +30,28 @@ enum InterruptAddresses {
     Joypad = 0x0060,
 }
 
+enum JoypadBits {
+    DownOrStart = 0b0000_1000,
+    UpOrSelect = 0b0000_0100,
+    LeftOrB = 0b0000_0010,
+    RightOrA = 0b0000_0001,
+}
+
 pub enum CpuStepResult {
     CyclesExecuted(u32),
     Stopped,
+}
+
+pub struct InputState {
+    pub a_button_was_pressed: bool,
+    pub up: bool,
+    pub down: bool,
+    pub left: bool,
+    pub right: bool,
+    pub start: bool,
+    pub select: bool,
+    pub b: bool,
+    pub a: bool,
 }
 
 pub struct Cpu {
@@ -72,6 +91,8 @@ pub struct Cpu {
     // memory
     mem: Vec<u8>,
     rom: Vec<u8>,
+
+    pub input_state: InputState,
 
     //opcode tables
     primary_bytecode_table: BytecodeTable,
@@ -137,6 +158,18 @@ impl Cpu {
 
             mem: vec![0; 0x10000], //65535 valid memory bytes the full virtual space of 0xffff
             rom: vec![0; 0],
+
+            input_state: InputState {
+                a_button_was_pressed: false,
+                up: false,
+                down: false,
+                left: false,
+                right: false,
+                start: false,
+                select: false,
+                b: false,
+                a: false,
+            },
 
             primary_bytecode_table: Cpu::build_bytecode_table(),
             cb_bytecode_table: Cpu::build_cb_bytecode_table(),
@@ -415,6 +448,71 @@ impl Cpu {
         }
     }
 
+    pub fn update_joypad(&mut self) {
+        // Bit 7 - Not used
+        // Bit 6 - Not used
+        // Bit 5 - P15 Select Action buttons    (0=Select)
+        // Bit 4 - P14 Select Direction buttons (0=Select)
+        // Bit 3 - P13 Input: Down  or Start    (0=Pressed) (Read Only)
+        // Bit 2 - P12 Input: Up    or Select   (0=Pressed) (Read Only)
+        // Bit 1 - P11 Input: Left  or B        (0=Pressed) (Read Only)
+        // Bit 0 - P10 Input: Right or A        (0=Pressed) (Read Only)
+
+        //get joypad state, reset out current 'pressed' states, we'll refresh these
+        //1 = __not__ pressed, 0 = pressed
+        let mut joypad_state = self.read_hw_reg(JOYPAD_ADDRESS) & 0b0011_0000;
+        joypad_state |= 0b0000_1111;
+        let joypad_matrix_select = joypad_state >> 4;
+        match joypad_matrix_select {
+            0b01 => {
+                //action buttons
+                if self.input_state.a {
+                    joypad_state ^= JoypadBits::RightOrA as u8;
+                }
+                if self.input_state.b {
+                    joypad_state ^= JoypadBits::LeftOrB as u8;
+                }
+                if self.input_state.select {
+                    joypad_state ^= JoypadBits::UpOrSelect as u8;
+                }
+                if self.input_state.start {
+                    joypad_state ^= JoypadBits::DownOrStart as u8;
+                }
+            }
+            0b10 => {
+                //direction buttons
+                if self.input_state.right {
+                    joypad_state ^= JoypadBits::RightOrA as u8;
+                }
+                if self.input_state.left {
+                    joypad_state ^= JoypadBits::LeftOrB as u8;
+                }
+                if self.input_state.up {
+                    joypad_state ^= JoypadBits::UpOrSelect as u8;
+                }
+                if self.input_state.down {
+                    joypad_state ^= JoypadBits::DownOrStart as u8;
+                }
+            }
+            0b11 => {
+                // I guess if you're just looking for any input?
+                if self.input_state.right | self.input_state.a {
+                    joypad_state ^= JoypadBits::RightOrA as u8;
+                }
+                if self.input_state.left | self.input_state.b {
+                    joypad_state ^= JoypadBits::LeftOrB as u8;
+                }
+                if self.input_state.up | self.input_state.select {
+                    joypad_state ^= JoypadBits::UpOrSelect as u8;
+                }
+                if self.input_state.down | self.input_state.start {
+                    joypad_state ^= JoypadBits::DownOrStart as u8;
+                }
+            }
+            _ => {}
+        }
+        self.write_hw_reg(JOYPAD_ADDRESS, joypad_state);
+    }
     fn check_interrupts(&mut self) -> Option<(InterruptAddresses, InterruptFlags)> {
         //IME, IE, IF
         // IME = master interrupt enable flag (write only), can only be modified by
@@ -684,6 +782,7 @@ impl Cpu {
                     value
                 );
                 self.mem[address] = filtered_value;
+                self.update_joypad();
             }
             NR52_SOUND_ON_OFF_ADDRESS => {
                 if self.is_apu_active() {
