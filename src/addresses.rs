@@ -55,7 +55,7 @@ pub const STAT_ADDRESS: usize = 0xff41; //LCD Stat
 /// - 2 OBJ size                       0=8x8, 1=8x16
 /// - 1 OBJ enable                     0=Off, 1=On
 /// - 0 BG and Window enable/priority  0=Off, 1=On
-pub const LCDC_ADDRESS: usize = 0xff40; 
+pub const LCDC_ADDRESS: usize = 0xff40;
 
 pub const OAM_TABLE_ADDRESS: usize = 0xfe00; //Sprite table, max 40 sprites of 4 bytes each
                                              /*

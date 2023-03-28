@@ -14,7 +14,7 @@ pub const WINDOW_TITLE: &str = "gb_emu";
 
 pub const OAM_TABLE_SIZE: usize = 40;
 /// obj canvas is offset from the screen by -8, -16, this means an obj at 0,0 is offscreen
-/// and an obj 0,2 has two pixels offscreen at LY = 0 and LY = 1. 
+/// and an obj 0,2 has two pixels offscreen at LY = 0 and LY = 1.
 pub const OBJ_CANVAS_Y_OFFSET: u8 = 16;
 pub const OBJ_CANVAS_X_OFFSET: u8 = 8;
 
