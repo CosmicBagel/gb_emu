@@ -492,7 +492,7 @@ impl Ppu {
             }
 
             // render the line out using bg_fragments and obj_fragments
-            let line = self.render_line(&bg_fragments, &obj_fragments);
+            let line = self.render_line(cpu, &bg_fragments, &obj_fragments);
 
             //copy line to self.pixels for ly
             let base = ly * GB_WIDTH;
@@ -709,28 +709,47 @@ impl Ppu {
 
     fn render_line(
         &self,
+        cpu: &Cpu,
         bg_fragments: &[BgFragment],
         obj_fragments: &[ObjFragment],
     ) -> [PixelShade; GB_WIDTH] {
-        // this is where bg_over_obj comes into play
+        let mut rendered_line = [PixelShade::White; GB_WIDTH];
 
-        // let bgp = cpu.read_hw_reg(BGP_ADDRESS);
-        // let shade_0 = PixelShade::from(bgp & 0b11);
-        // let shade_1 = PixelShade::from((bgp >> 2) & 0b11);
-        // let shade_2 = PixelShade::from((bgp >> 4) & 0b11);
-        // let shade_3 = PixelShade::from((bgp >> 6) & 0b11);
+        fn palette_to_shades(palette: u8) -> [PixelShade; 4] {
+            [
+                PixelShade::from(palette & 0b11),
+                PixelShade::from((palette >> 2) & 0b11),
+                PixelShade::from((palette >> 4) & 0b11),
+                PixelShade::from((palette >> 6) & 0b11),
+            ]
+        }
+        let bgp = cpu.read_hw_reg(BGP_ADDRESS);
+        let obp0 = cpu.read_hw_reg(OBP0_ADDRESS);
+        let obp1 = cpu.read_hw_reg(OBP1_ADDRESS);
+        let bg_shades = palette_to_shades(bgp);
+        let obp0_shades = palette_to_shades(obp0);
+        let obp1_shades = palette_to_shades(obp1);
 
-        // let mut tile_pixels = [PixelShade::White; TILE_SIZE * TILE_SIZE];
-        // for (ind, color_id) in tile_color_ids.iter().enumerate() {
-        //     tile_pixels[ind] = match color_id {
-        //         0 => shade_0,
-        //         1 => shade_1,
-        //         2 => shade_2,
-        //         3 => shade_3,
-        //         _ => shade_0,
-        //     }
-        // }
-        todo!("render line functionality");
+        for i in 0..GB_WIDTH {
+            let bg_fragment = bg_fragments[i];
+            let obj_fragment = obj_fragments[i];
+
+            if obj_fragment.color_id != OBJ_TRANSPARENT_COLOR_ID {
+                if obj_fragment.bg_over_obj_flag && bg_fragment > 0 {
+                    // this is where bg_over_obj comes into play
+                    // - bg color_ids 1-3 over ride where obj_fragments are if they are flagged bg_over_obj
+                    rendered_line[i] = bg_shades[bg_fragment as usize];
+                } else {
+                    rendered_line[i] = match obj_fragment.palette {
+                        ObjPalette::OBP0 => obp0_shades[obj_fragment.color_id as usize],
+                        ObjPalette::OBP1 => obp1_shades[obj_fragment.color_id as usize],
+                    }
+                }
+            } else {
+                rendered_line[i] = bg_shades[bg_fragment as usize];
+            }
+        }
+        rendered_line
     }
 
     pub fn get_pixels(&self) -> [PixelShade; GB_WIDTH * GB_HEIGHT] {

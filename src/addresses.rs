@@ -75,8 +75,8 @@ pub const OAM_TABLE_END_ADDRESS: usize = 0xfe9f;
 pub const SCX_ADDRESS: usize = 0xff43;
 pub const SCY_ADDRESS: usize = 0xff42;
 pub const BGP_ADDRESS: usize = 0xff47;
-// pub const OBP0_ADDRESS: usize = 0xff48;
-// pub const OBP1_ADDRESS: usize = 0xff49;
+pub const OBP0_ADDRESS: usize = 0xff48;
+pub const OBP1_ADDRESS: usize = 0xff49;
 
 ///each tile block holds 128 tiles (16 bytes each)
 // pub const TILE_DATA_BLOCK_SIZE: usize = 128 * 16;
