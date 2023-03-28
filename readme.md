@@ -20,3 +20,5 @@ Keybindings:
 - j,k -> b,a
 - u,i -> select, start
 - shift -> turbo
+
+Yes supports gamepad (plus triggers for turbo)
