@@ -312,7 +312,7 @@ fn handle_keyboard_input(input: &WinitInputHelper, input_state: &mut InputState)
 }
 
 fn handle_gamepad_input(gilrs: &mut Gilrs, input_state: &mut InputState, turbo: &mut bool) {
-    while let Some(gilrs::Event { id, event, time }) = gilrs.next_event() {
+    while let Some(gilrs::Event { id: _, event, time: _}) = gilrs.next_event() {
         match event {
             gilrs::EventType::ButtonPressed(btn, _) => match btn {
                 gilrs::Button::South => {
