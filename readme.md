@@ -19,3 +19,4 @@ Keybindings:
 - wasd -> direction pad
 - j,k -> b,a
 - u,i -> select, start
+- shift -> turbo
