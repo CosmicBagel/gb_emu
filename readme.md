@@ -14,7 +14,7 @@ cargo run cpu_instrs.gb
 ```
 
 Keybindings:
-- esc -> toggle ui
+- esc -> toggle ui (there isn't actually a UI yet)
 - wasd -> direction pad
 - j,k -> b,a
 - u,i -> select, start
