@@ -3,22 +3,21 @@ pub const ROM_BANK_00_END_ADDRESS: usize = 0x3fff;
 pub const ROM_BANK_NN_START_ADDRESS: usize = 0x4000;
 pub const ROM_BANK_NN_END_ADDRESS: usize = 0x7fff;
 
-pub const INTERRUPT_ENABLE_ADDRESS: usize = 0xffff; // program allows interrupts
-                                                    /*
-                                                    Bit 0: VBlank   Interrupt Enable  (INT $40)  (1=Enable)
-                                                    Bit 1: LCD STAT Interrupt Enable  (INT $48)  (1=Enable)
-                                                    Bit 2: Timer    Interrupt Enable  (INT $50)  (1=Enable)
-                                                    Bit 3: Serial   Interrupt Enable  (INT $58)  (1=Enable)
-                                                    Bit 4: Joypad   Interrupt Enable  (INT $60)  (1=Enable)
-                                                    */
-pub const INTERRUPT_FLAG_ADDRESS: usize = 0xff0f; // program explicitly requests interrupt
-                                                  /*
-                                                  Bit 0: VBlank   Interrupt Request (INT $40)  (1=Request)
-                                                  Bit 1: LCD STAT Interrupt Request (INT $48)  (1=Request)
-                                                  Bit 2: Timer    Interrupt Request (INT $50)  (1=Request)
-                                                  Bit 3: Serial   Interrupt Request (INT $58)  (1=Request)
-                                                  Bit 4: Joypad   Interrupt Request (INT $60)  (1=Request)
-                                                   */
+/// program allows interrupts
+/// - Bit 0: VBlank   Interrupt Enable  (INT $40)  (1=Enable)
+/// - Bit 1: LCD STAT Interrupt Enable  (INT $48)  (1=Enable)
+/// - Bit 2: Timer    Interrupt Enable  (INT $50)  (1=Enable)
+/// - Bit 3: Serial   Interrupt Enable  (INT $58)  (1=Enable)
+/// - Bit 4: Joypad   Interrupt Enable  (INT $60)  (1=Enable)
+pub const INTERRUPT_ENABLE_ADDRESS: usize = 0xffff;
+
+/// program explicitly requests interrupt
+/// - Bit 0: VBlank   Interrupt Request (INT $40)  (1=Request)
+/// - Bit 1: LCD STAT Interrupt Request (INT $48)  (1=Request)
+/// - Bit 2: Timer    Interrupt Request (INT $50)  (1=Request)
+/// - Bit 3: Serial   Interrupt Request (INT $58)  (1=Request)
+/// - Bit 4: Joypad   Interrupt Request (INT $60)  (1=Request)
+pub const INTERRUPT_FLAG_ADDRESS: usize = 0xff0f;
 
 pub const DIV_ADDRESS: usize = 0xff04; //divider register
 pub const TIMA_ADDRESS: usize = 0xff05; //timer counter

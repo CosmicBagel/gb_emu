@@ -1,3 +1,4 @@
+use addresses::{INTERRUPT_FLAG_ADDRESS, JOYPAD_ADDRESS};
 use constants::*;
 // use core::time;
 use cpu::{Cpu, CpuStepResult};
@@ -19,6 +20,25 @@ mod cpu;
 // mod gui;
 mod ppu;
 
+enum JoypadBits {
+    DownOrStart = 0b0000_1000,
+    UpOrSelect = 0b0000_0100,
+    LeftOrB = 0b0000_0010,
+    RightOrA = 0b0000_0001,
+}
+
+struct InputState {
+    a_button_was_pressed: bool,
+    up: bool,
+    down: bool,
+    left: bool,
+    right: bool,
+    start: bool,
+    select: bool,
+    b: bool,
+    a: bool,
+}
+
 fn init_emulator() -> (Cpu, Ppu) {
     let args: Vec<_> = env::args().collect();
     let filename = if args.len() < 2 {
@@ -38,7 +58,7 @@ fn main() {
     SimpleLogger::new()
         .with_colors(true)
         .with_level(log::LevelFilter::Error)
-        .with_module_level("gb_emu", log::LevelFilter::Trace)
+        .with_module_level("gb_emu", log::LevelFilter::Debug)
         .init()
         .unwrap();
     let (mut cpu, mut ppu) = init_emulator();
@@ -68,6 +88,18 @@ fn main() {
         pixels
     };
 
+    let mut input_state = InputState {
+        a_button_was_pressed: false,
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+        start: false,
+        select: false,
+        b: false,
+        a: false,
+    };
+
     //**timing stuff**
     //4.194304 MHz
     //238.4185791015625 nanoseconds per cycle (ns)
@@ -78,7 +110,6 @@ fn main() {
     let cycles_per_yield = 20_000u32;
     let mut cycle_count_since_last_yield = 0u32;
 
-    let mut total_cycles = 0;
     let mut is_gui_active = IS_GUI_ACTIVE_DEFAULT;
 
     event_loop.run(move |event, _, control_flow| {
@@ -109,11 +140,13 @@ fn main() {
                 }
             }
 
-            //todo: fetch joypad input here (keyboard or controller possibly) => update interrupts
+            handle_keyboard_input(&input, &mut input_state);
 
             //process emulator cycles until a frame is ready
             let mut frame_cycles = 0;
             loop {
+                update_joypad(&mut cpu, &mut input_state);
+
                 let cycle_cost;
                 match cpu.do_step() {
                     CpuStepResult::Stopped => {
@@ -123,7 +156,6 @@ fn main() {
                     CpuStepResult::CyclesExecuted(cycles) => cycle_cost = cycles,
                 }
                 frame_cycles += cycle_cost;
-                total_cycles += cycle_cost;
 
                 let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
 
@@ -132,7 +164,7 @@ fn main() {
                     ppu::PpuStepResult::Draw => {
                         //will be only triggered on Draw PPU response
                         window.request_redraw();
-                        thread::sleep(time::Duration::from_millis(200));
+                        thread::sleep(time::Duration::from_millis(10));
                         break;
                     }
                 }
@@ -141,7 +173,7 @@ fn main() {
                 if frame_cycles >= CLOCKS_PER_FRAME {
                     log::warn!("Forcing frame draw!!!");
                     window.request_redraw();
-                    thread::sleep(time::Duration::from_millis(200));
+                    thread::sleep(time::Duration::from_millis(10));
                     break;
                 }
             }
@@ -202,10 +234,146 @@ fn main() {
                     control_flow.set_exit();
                 }
             }
-            Event::LoopDestroyed => {
-                log::info!("Total cycles emulated: {:}", total_cycles);
-            }
+            Event::LoopDestroyed => {}
             _ => (),
         }
     });
+}
+
+fn update_joypad(cpu: &mut Cpu, input_state: &mut InputState) {
+    //todo: fetch joypad input here (keyboard or controller possibly) => update interrupts
+    // Bit 7 - Not used
+    // Bit 6 - Not used
+    // Bit 5 - P15 Select Action buttons    (0=Select)
+    // Bit 4 - P14 Select Direction buttons (0=Select)
+    // Bit 3 - P13 Input: Down  or Start    (0=Pressed) (Read Only)
+    // Bit 2 - P12 Input: Up    or Select   (0=Pressed) (Read Only)
+    // Bit 1 - P11 Input: Left  or B        (0=Pressed) (Read Only)
+    // Bit 0 - P10 Input: Right or A        (0=Pressed) (Read Only)
+
+    //get joypad state, reset out current 'pressed' states, we'll refresh these
+    //1 = __not__ pressed, 0 = pressed
+    let mut joypad_state = cpu.read_hw_reg(JOYPAD_ADDRESS) & 0b0011_0000;
+    joypad_state |= 0b0000_1111;
+    let joypad_matrix_select = joypad_state >> 4;
+    match joypad_matrix_select {
+        0b01 => {
+            //action buttons
+            if input_state.a {
+                joypad_state ^= JoypadBits::RightOrA as u8;
+            }
+            if input_state.b {
+                joypad_state ^= JoypadBits::LeftOrB as u8;
+            }
+            if input_state.select {
+                joypad_state ^= JoypadBits::UpOrSelect as u8;
+            }
+            if input_state.start {
+                joypad_state ^= JoypadBits::DownOrStart as u8;
+            }
+        }
+        0b10 => {
+            //direction buttons
+            if input_state.right {
+                joypad_state ^= JoypadBits::RightOrA as u8;
+            }
+            if input_state.left {
+                joypad_state ^= JoypadBits::LeftOrB as u8;
+            }
+            if input_state.up {
+                joypad_state ^= JoypadBits::UpOrSelect as u8;
+            }
+            if input_state.down {
+                joypad_state ^= JoypadBits::DownOrStart as u8;
+            }
+        }
+        0b11 => {
+            // I guess if you're just looking for any input?
+            if input_state.right | input_state.a {
+                joypad_state ^= JoypadBits::RightOrA as u8;
+            }
+            if input_state.left | input_state.b {
+                joypad_state ^= JoypadBits::LeftOrB as u8;
+            }
+            if input_state.up | input_state.select {
+                joypad_state ^= JoypadBits::UpOrSelect as u8;
+            }
+            if input_state.down | input_state.start {
+                joypad_state ^= JoypadBits::DownOrStart as u8;
+            }
+        }
+        _ => {}
+    }
+    cpu.write_hw_reg(JOYPAD_ADDRESS, joypad_state);
+    if input_state.a_button_was_pressed {
+        input_state.a_button_was_pressed = false;
+        let int_flags = cpu.read_hw_reg(INTERRUPT_FLAG_ADDRESS);
+        cpu.write_hw_reg(INTERRUPT_FLAG_ADDRESS, int_flags | 0b0001_0000);
+    }
+}
+
+fn handle_keyboard_input(input: &WinitInputHelper, input_state: &mut InputState) {
+    if input.key_pressed(VirtualKeyCode::A) {
+        input_state.left = true;
+        input_state.a_button_was_pressed = true;
+    }
+    if input.key_released(VirtualKeyCode::A) {
+        input_state.left = false;
+    }
+
+    if input.key_pressed(VirtualKeyCode::S) {
+        input_state.down = true;
+        input_state.a_button_was_pressed = true;
+    }
+    if input.key_released(VirtualKeyCode::S) {
+        input_state.down = false;
+    }
+
+    if input.key_pressed(VirtualKeyCode::D) {
+        input_state.right = true;
+        input_state.a_button_was_pressed = true;
+    }
+    if input.key_released(VirtualKeyCode::D) {
+        input_state.right = false;
+    }
+
+    if input.key_pressed(VirtualKeyCode::W) {
+        input_state.up = true;
+        input_state.a_button_was_pressed = true;
+    }
+    if input.key_released(VirtualKeyCode::W) {
+        input_state.up = false;
+    }
+
+    if input.key_pressed(VirtualKeyCode::J) {
+        input_state.b = true;
+        input_state.a_button_was_pressed = true;
+    }
+    if input.key_released(VirtualKeyCode::J) {
+        input_state.b = false;
+    }
+
+    if input.key_pressed(VirtualKeyCode::K) {
+        input_state.a = true;
+        input_state.a_button_was_pressed = true;
+    }
+    if input.key_released(VirtualKeyCode::K) {
+        input_state.a = false;
+    }
+
+    if input.key_pressed(VirtualKeyCode::U) {
+        input_state.select = true;
+        input_state.a_button_was_pressed = true;
+    }
+    if input.key_released(VirtualKeyCode::U) {
+        input_state.select = false;
+    }
+
+    if input.key_pressed(VirtualKeyCode::I) {
+        input_state.start = true;
+        input_state.a_button_was_pressed = true;
+    }
+    if input.key_released(VirtualKeyCode::I) {
+        input_state.start = false;
+    }
 }

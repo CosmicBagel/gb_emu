@@ -233,8 +233,6 @@ impl Cpu {
             }
         }
 
-        self.update_joypad();
-
         let opcode = self.mem[self.pc];
 
         let mut cycle_cost = 0;
@@ -417,11 +415,6 @@ impl Cpu {
         }
     }
 
-    fn update_joypad(&mut self) {
-        //todo
-        self.mem[JOYPAD_ADDRESS] = (self.mem[JOYPAD_ADDRESS] & 0b0011_0000) | 0b0000_1111;
-    }
-
     fn check_interrupts(&mut self) -> Option<(InterruptAddresses, InterruptFlags)> {
         //IME, IE, IF
         // IME = master interrupt enable flag (write only), can only be modified by
@@ -555,6 +548,10 @@ impl Cpu {
                 //the OAM memory, but i'd rather not emulate that
                 0xff
             }
+            JOYPAD_ADDRESS => {
+                log::trace!("({:#06x}) JOYPAD read {:#010b}", self.pc, self.mem[address]);
+                self.mem[address]
+            }
             NR11_CHANNEL1_LENGTH_DUTY_ADDRESS | NR21_CHANNEL2_LENGTH_DUTY_ADDRESS => {
                 // filtering out write only bits
                 self.mem[address] & 0b1100_0000
@@ -678,7 +675,7 @@ impl Cpu {
                 self.mem[address] = value;
             }
             JOYPAD_ADDRESS => {
-                let filtered_value = (value & 0b0011_0000) | self.mem[address];
+                let filtered_value = (value & 0b0011_0000) | (self.mem[address] & 0b0000_1111);
                 log::trace!(
                     "({:#06x}) JOYPAD changed from {:#010b} to {:#010b} (unfiltered {:#010b})",
                     self.pc,

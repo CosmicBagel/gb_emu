@@ -13,3 +13,9 @@ Running:
 ```shell
 cargo run
 ```
+
+Keybindings:
+- esc -> toggle ui
+- wasd -> direction pad
+- j,k -> b,a
+- u,i -> select, start
