@@ -2,10 +2,11 @@ use addresses::INTERRUPT_FLAG_ADDRESS;
 use constants::*;
 // use core::time;
 use cpu::{Cpu, CpuStepResult, InputState};
+use gilrs::Gilrs;
 use pixels::{PixelsBuilder, SurfaceTexture};
 use ppu::Ppu;
 use simple_logger::SimpleLogger;
-use std::{env, thread, time, process::exit};
+use std::{env, process::exit, thread, time};
 use winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -45,6 +46,7 @@ fn main() {
     let (mut cpu, mut ppu) = init_emulator();
 
     let event_loop = EventLoop::new();
+    let mut gilrs = Gilrs::new().unwrap();
     let mut input = WinitInputHelper::new();
     let window = {
         let size = LogicalSize::new(WINDOW_WIDTH as f64, WINDOW_HEIGHT as f64);
@@ -96,7 +98,16 @@ fn main() {
                 is_gui_active = !is_gui_active;
             }
 
-            turbo = input.held_shift();
+            if input.key_pressed(VirtualKeyCode::LShift)
+                || input.key_pressed(VirtualKeyCode::RShift)
+            {
+                turbo = true;
+            }
+            if input.key_released(VirtualKeyCode::LShift)
+                || input.key_released(VirtualKeyCode::RShift)
+            {
+                turbo = false;
+            }
 
             if input.close_requested() {
                 control_flow.set_exit();
@@ -118,7 +129,7 @@ fn main() {
             //reset before input is checked again
             cpu.input_state.a_button_was_pressed = false;
             handle_keyboard_input(&input, &mut cpu.input_state);
-            //todo gamepad input here
+            handle_gamepad_input(&mut gilrs, &mut cpu.input_state, &mut turbo);
             update_joypad_interrupt(&mut cpu);
 
             //initial joypad update (will also be updated when JOYPAD register is written to)
@@ -297,5 +308,102 @@ fn handle_keyboard_input(input: &WinitInputHelper, input_state: &mut InputState)
     }
     if input.key_released(VirtualKeyCode::I) {
         input_state.start = false;
+    }
+}
+
+fn handle_gamepad_input(gilrs: &mut Gilrs, input_state: &mut InputState, turbo: &mut bool) {
+    while let Some(gilrs::Event { id, event, time }) = gilrs.next_event() {
+        log::debug!("{:?} New event from {}: {:?}", time, id, event);
+
+        match event {
+            gilrs::EventType::ButtonPressed(btn, _) => match btn {
+                gilrs::Button::South => {
+                    input_state.a = true;
+                    input_state.a_button_was_pressed = true;
+                }
+                gilrs::Button::East => {
+                    input_state.b = true;
+                    input_state.a_button_was_pressed = true;
+                }
+                gilrs::Button::Select => {
+                    input_state.select = true;
+                    input_state.a_button_was_pressed = true;
+                }
+                gilrs::Button::Start => {
+                    input_state.start = true;
+                    input_state.a_button_was_pressed = true;
+                }
+                gilrs::Button::DPadUp => {
+                    input_state.up = true;
+                    input_state.a_button_was_pressed = true;
+                }
+                gilrs::Button::DPadDown => {
+                    input_state.down = true;
+                    input_state.a_button_was_pressed = true;
+                }
+                gilrs::Button::DPadLeft => {
+                    input_state.left = true;
+                    input_state.a_button_was_pressed = true;
+                }
+                gilrs::Button::DPadRight => {
+                    input_state.right = true;
+                    input_state.a_button_was_pressed = true;
+                }
+                gilrs::Button::LeftTrigger2 => *turbo = true,
+                gilrs::Button::RightTrigger2 => *turbo = true,
+                _ => {}
+            },
+
+            gilrs::EventType::ButtonReleased(btn, _) => match btn {
+                gilrs::Button::South => input_state.a = false,
+                gilrs::Button::East => input_state.b = false,
+                gilrs::Button::Select => input_state.select = false,
+                gilrs::Button::Start => input_state.start = false,
+                gilrs::Button::DPadUp => input_state.up = false,
+                gilrs::Button::DPadDown => input_state.down = false,
+                gilrs::Button::DPadLeft => input_state.left = false,
+                gilrs::Button::DPadRight => input_state.right = false,
+                gilrs::Button::LeftTrigger2 => *turbo = false,
+                gilrs::Button::RightTrigger2 => *turbo = false,
+                _ => {}
+            },
+
+            gilrs::EventType::AxisChanged(axis, value, _) => {
+                input_state.a_button_was_pressed = true;
+                match axis {
+                    gilrs::Axis::LeftStickX => {
+                        if value.abs() >= STICK_DEADZONE {
+                            if value > 0f32 {
+                                input_state.right = true;
+                                input_state.left = false;
+                            } else {
+                                input_state.left = true;
+                                input_state.right = false;
+                            }
+                        } else {
+                            input_state.right = false;
+                            input_state.left = false;
+                        }
+                    }
+                    gilrs::Axis::LeftStickY => {
+                        if value.abs() >= STICK_DEADZONE {
+                            if value > 0f32 {
+                                input_state.up = true;
+                                input_state.down = false;
+                            } else {
+                                input_state.down = true;
+                                input_state.up = false;
+                            }
+                        } else {
+                            input_state.up = false;
+                            input_state.down = false;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            _ => {}
+        }
     }
 }

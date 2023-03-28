@@ -1,3 +1,5 @@
+pub const STICK_DEADZONE: f32 = 0.25;
+
 pub const DR_GB_LOGGING_ENABLED: bool = false;
 
 pub const GB_WIDTH: usize = 160;
