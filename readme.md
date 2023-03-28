@@ -1,3 +1,23 @@
+# gb_emu
+
+## Usage:
+Running a release (**command line only**):
+```
+gb_emu.exe a_cool_rom.gb
+```
+
+Keybindings:
+- esc -> toggle ui (there isn't actually a UI yet)
+- wasd -> direction pad
+- j,k -> b,a
+- u,i -> select, start
+- shift -> turbo
+
+Yes, supports gamepad (plus triggers for turbo)
+
+---
+## Development:
+
 Install rust (latest stable): https://www.rust-lang.org/tools/install  
 
 Get test rom from https://github.com/retrio/gb-test-roms/raw/master/cpu_instrs/cpu_instrs.gb
@@ -13,11 +33,3 @@ Running:
 cargo run cpu_instrs.gb
 ```
 
-Keybindings:
-- esc -> toggle ui (there isn't actually a UI yet)
-- wasd -> direction pad
-- j,k -> b,a
-- u,i -> select, start
-- shift -> turbo
-
-Yes supports gamepad (plus triggers for turbo)
