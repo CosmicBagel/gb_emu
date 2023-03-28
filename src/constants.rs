@@ -1,5 +1,3 @@
-pub const DEFAULT_ROM: &str = "02-interrupts.gb";
-
 pub const DR_GB_LOGGING_ENABLED: bool = false;
 
 pub const GB_WIDTH: usize = 160;

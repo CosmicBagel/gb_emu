@@ -5,7 +5,7 @@ use cpu::{Cpu, CpuStepResult, InputState};
 use pixels::{PixelsBuilder, SurfaceTexture};
 use ppu::Ppu;
 use simple_logger::SimpleLogger;
-use std::{env, thread, time};
+use std::{env, thread, time, process::exit};
 use winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -24,8 +24,8 @@ fn init_emulator() -> (Cpu, Ppu) {
     let args: Vec<_> = env::args().collect();
     let filename = if args.len() < 2 {
         //this is to make debugging easier to deal with
-        log::info!("Using default rom file");
-        DEFAULT_ROM
+        log::error!("No rom file specified");
+        exit(1);
     } else {
         args[1].as_str()
     };
