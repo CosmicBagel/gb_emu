@@ -673,7 +673,8 @@ impl Ppu {
         for pair_ind in 0..TILE_SIZE {
             let ind = if mirror_y {
                 //14 - (pair_ind * 2); bottom-to-top indexing
-                (TILE_SIZE * TILE_BYTES_PER_ROW - TILE_BYTES_PER_ROW) - (pair_ind * TILE_BYTES_PER_ROW)
+                (TILE_SIZE * TILE_BYTES_PER_ROW - TILE_BYTES_PER_ROW)
+                    - (pair_ind * TILE_BYTES_PER_ROW)
             } else {
                 //pair_ind * 2; top-to-bottom indexing
                 pair_ind * TILE_BYTES_PER_ROW
