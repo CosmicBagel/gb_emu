@@ -165,6 +165,8 @@ impl Gui {
                     self.window_open = true;
                     ui.close_menu();
                 };
+                ui.separator();
+                ui.label("Press ESC to show/hide UI");
             });
         });
 
