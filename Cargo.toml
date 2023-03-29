@@ -6,16 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
+log = "0.4.17"
 winit = "0.28.3"
 winit_input_helper = "0.14.0"
 gilrs = "0.10.1"
 pixels = "0.12.0"
-
-egui = "*"
-egui-wgpu = "*"
-egui-winit = { version = "*", default-features = false, features = ["links"]}
-log = "0.4.17"
+rfd = "*"
+egui = "0.21.0"
+egui-wgpu = "0.21.0"
+egui-winit = { version = "0.21.1", default-features = false, features = ["links"]}
 
 [dependencies.simple_logger]
 version = "4.1.0"

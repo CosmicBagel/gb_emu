@@ -7,7 +7,7 @@ gb_emu.exe a_cool_rom.gb
 ```
 
 Keybindings:
-- esc -> toggle ui (there isn't actually a UI yet)
+- esc -> toggle ui 
 - wasd -> direction pad
 - j,k -> b,a
 - u,i -> select, start

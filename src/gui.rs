@@ -6,6 +6,8 @@ use pixels::{wgpu, PixelsContext};
 use winit::event_loop::EventLoopWindowTarget;
 use winit::window::Window;
 
+use crate::cpu::Cpu;
+
 // manages all state required for rendering egui over 'pixels'
 pub(crate) struct Framework {
     // state for egui
@@ -78,12 +80,12 @@ impl Framework {
     }
 
     // prepare egui
-    pub(crate) fn prepare(&mut self, window: &Window) {
+    pub(crate) fn prepare(&mut self, window: &Window, cpu: &mut Cpu) {
         // run the egui frame and create all paint jobs to prepare for rendering
         let raw_input = self.egui_state.take_egui_input(window);
         let output = self.egui_ctx.run(raw_input, |egui_ctx| {
             // draw the demo application
-            self.gui.ui(egui_ctx);
+            self.gui.ui(egui_ctx, cpu);
         });
 
         self.textures.append(output.textures_delta);
@@ -142,34 +144,41 @@ impl Framework {
 impl Gui {
     // create gui state
     fn new() -> Self {
-        Self { window_open: true }
+        Self { window_open: false }
     }
 
     // create ui using egui
-    fn ui(&mut self, ctx: &Context) {
+    fn ui(&mut self, ctx: &Context, cpu: &mut Cpu) {
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("About...").clicked() {
-                        self.window_open = true;
-                        ui.close_menu();
+                // ui.menu_button("File", |ui| {
+                // });
+                if ui.button("Load ROM").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        let picked_path = Some(path.display().to_string());
+                        if let Some(rom_path) = picked_path {
+                            cpu.load_rom(&rom_path);
+                        }
                     }
-                })
+                };
+                if ui.button("About").clicked() {
+                    self.window_open = true;
+                    ui.close_menu();
+                };
             });
         });
 
-        egui::Window::new("Hello egui")
+        egui::Window::new("gb_emu")
             .open(&mut self.window_open)
             .show(ctx, |ui| {
-                ui.label("example to demo egui with pixels");
-                ui.label("fsfsdfafsd");
+                ui.label("A simple emulator written in rust using egui, pixels, and winit");
 
                 ui.separator();
 
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x /= 2.0;
-                    ui.label("url be here");
-                    ui.hyperlink("https://cosmicbagel.ca");
+                    ui.label("Repo:");
+                    ui.hyperlink("https://github.com/CosmicBagel/gb_emu");
                 });
             });
     }

@@ -5,7 +5,7 @@ use gilrs::Gilrs;
 use pixels::{PixelsBuilder, SurfaceTexture};
 use ppu::Ppu;
 use simple_logger::SimpleLogger;
-use std::{env, process::exit, thread, time};
+use std::{env, thread, time};
 use winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -21,17 +21,12 @@ mod gui;
 mod ppu;
 
 fn init_emulator() -> (Cpu, Ppu) {
-    let args: Vec<_> = env::args().collect();
-    let filename = if args.len() < 2 {
-        //this is to make debugging easier to deal with
-        log::error!("No rom file specified");
-        exit(1);
-    } else {
-        args[1].as_str()
-    };
-
     let mut cpu = Cpu::new();
-    cpu.load_rom(filename);
+    let args: Vec<_> = env::args().collect();
+    if args.len() >= 2 {
+        let filename = args[1].as_str();
+        cpu.load_rom(filename);
+    };
     (cpu, Ppu::new())
 }
 
@@ -96,7 +91,11 @@ fn main() {
         let start_time = time::Instant::now();
         //poll mode allows us to choose when to render out an image, as well as how long to sleep
         //in between loop cycles
-        control_flow.set_poll();
+        if cpu.rom_loaded {
+            control_flow.set_poll();
+        } else {
+            control_flow.set_wait();
+        }
 
         if input.update(&event) {
             //all _input_ events have been collected and can be queried at any time
@@ -143,37 +142,7 @@ fn main() {
             //initial joypad update (will also be updated when JOYPAD register is written to)
             cpu.update_joypad();
 
-            //process emulator cycles until a frame is ready
-            let mut frame_cycles = 0;
-            loop {
-                let cycle_cost;
-                match cpu.do_step() {
-                    CpuStepResult::Stopped => {
-                        control_flow.set_exit();
-                        break;
-                    }
-                    CpuStepResult::CyclesExecuted(cycles) => cycle_cost = cycles,
-                }
-                frame_cycles += cycle_cost;
-
-                let ppu_step_result = ppu.do_step(&mut cpu, cycle_cost);
-
-                match ppu_step_result {
-                    ppu::PpuStepResult::NoAction => {}
-                    ppu::PpuStepResult::Draw => {
-                        //will be only triggered on Draw PPU response
-                        window.request_redraw();
-                        break;
-                    }
-                }
-
-                // don't let the emulator hang in case of bug or something weird
-                if frame_cycles >= CLOCKS_PER_FRAME {
-                    log::warn!("Forcing frame draw!!! ppu should be triggering a frame");
-                    window.request_redraw();
-                    break;
-                }
-            }
+            do_emulator_frame(&mut cpu, control_flow, &mut ppu, &window);
         }
 
         match event {
@@ -184,7 +153,7 @@ fn main() {
             }
             Event::RedrawRequested(_) => {
                 if is_gui_active {
-                    gui.prepare(&window);
+                    gui.prepare(&window, &mut cpu);
                 }
 
                 // draw image to 'pixels' buffer and flip buffer
@@ -233,6 +202,49 @@ fn main() {
             _ => (),
         }
     });
+}
+
+fn do_emulator_frame(
+    cpu: &mut Cpu,
+    control_flow: &mut winit::event_loop::ControlFlow,
+    ppu: &mut Ppu,
+    window: &winit::window::Window,
+) {
+    if cpu.rom_loaded {
+        //process emulator cycles until a frame is ready
+        let mut frame_cycles = 0;
+        loop {
+            let cycle_cost;
+            match cpu.do_step() {
+                CpuStepResult::Stopped => {
+                    control_flow.set_exit();
+                    break;
+                }
+                CpuStepResult::CyclesExecuted(cycles) => cycle_cost = cycles,
+            }
+            frame_cycles += cycle_cost;
+
+            let ppu_step_result = ppu.do_step(cpu, cycle_cost);
+
+            match ppu_step_result {
+                ppu::PpuStepResult::NoAction => {}
+                ppu::PpuStepResult::Draw => {
+                    //will be only triggered on Draw PPU response
+                    window.request_redraw();
+                    break;
+                }
+            }
+
+            // don't let the emulator hang in case of bug or something weird
+            if frame_cycles >= CLOCKS_PER_FRAME {
+                log::warn!("Forcing frame draw!!! ppu should be triggering a frame");
+                window.request_redraw();
+                break;
+            }
+        }
+    } else {
+        window.request_redraw();
+    }
 }
 
 fn update_joypad_interrupt(cpu: &mut Cpu) {

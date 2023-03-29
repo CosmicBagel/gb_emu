@@ -131,6 +131,8 @@ pub struct Cpu {
     pub is_oam_dma_active: bool,
     /// used to track the 160 cycles oam dma runs for
     dma_active_cycle_counter: u32,
+
+    pub rom_loaded: bool,
 }
 
 impl Cpu {
@@ -189,10 +191,15 @@ impl Cpu {
             is_stopped: false,
             is_oam_dma_active: false,
             dma_active_cycle_counter: 0,
+
+            rom_loaded: false,
         }
     }
 
     pub fn load_rom(&mut self, filename: &str) {
+        //reset CPU
+        *self = Cpu::new();
+
         self.rom = read(filename).unwrap_or_else(|e| {
             panic!("Bad rom file {:}\n{:}", filename, e);
         });
@@ -255,6 +262,7 @@ impl Cpu {
 
         self.apply_post_boot_state(header_sum);
         self.dr_log_line_initial();
+        self.rom_loaded = true;
     }
 
     pub fn do_step(&mut self) -> CpuStepResult {

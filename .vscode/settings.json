@@ -22,6 +22,7 @@
         "PCMEM",
         "RETI",
         "rlca",
+        "rpass",
         "rrca",
         "scanline",
         "scanlines",
