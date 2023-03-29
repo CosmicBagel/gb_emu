@@ -11,7 +11,7 @@ winit = "0.28.3"
 winit_input_helper = "0.14.0"
 gilrs = "0.10.1"
 pixels = "0.12.0"
-rfd = "*"
+rfd = "0.11.3"
 egui = "0.21.0"
 egui-wgpu = "0.21.0"
 egui-winit = { version = "0.21.1", default-features = false, features = ["links"]}
