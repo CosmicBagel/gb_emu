@@ -1,10 +1,11 @@
 # gb_emu
 
 ## Usage:
-Running a release (**command line only**):
+Running a release:
 ```
 gb_emu.exe a_cool_rom.gb
 ```
+Or use GUI to select and load rom.
 
 Keybindings:
 - esc -> toggle ui 
