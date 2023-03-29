@@ -1,6 +1,5 @@
 use addresses::INTERRUPT_FLAG_ADDRESS;
 use constants::*;
-// use core::time;
 use cpu::{Cpu, CpuStepResult, InputState};
 use gilrs::Gilrs;
 use pixels::{PixelsBuilder, SurfaceTexture};
@@ -18,7 +17,7 @@ use winit_input_helper::WinitInputHelper;
 mod addresses;
 mod constants;
 mod cpu;
-// mod gui;
+mod gui;
 mod ppu;
 
 fn init_emulator() -> (Cpu, Ppu) {
@@ -59,16 +58,25 @@ fn main() {
             .unwrap()
     };
 
-    let mut pixels = {
+    let (mut pixels, mut gui) = {
         let window_size = window.inner_size();
-        // let scale_factor = window.scale_factor() as f32;
+        let scale_factor = window.scale_factor() as f32;
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+
         let pixels = PixelsBuilder::new(GB_WIDTH as u32, GB_HEIGHT as u32, surface_texture)
             .enable_vsync(false)
             .build()
             .unwrap();
 
-        pixels
+        let gui = gui::Framework::new(
+            &event_loop,
+            window.inner_size().width,
+            window.inner_size().height,
+            scale_factor,
+            &pixels,
+        );
+
+        (pixels, gui)
     };
 
     //**timing stuff**
@@ -81,8 +89,6 @@ fn main() {
     //target is 16.742706298828125ms
     let target_loop_duration = time::Duration::from_nanos(16742706);
     let mut turbo = false;
-    let cycles_per_yield = 20_000u32;
-    let mut cycle_count_since_last_yield = 0u32;
 
     let mut is_gui_active = IS_GUI_ACTIVE_DEFAULT;
 
@@ -113,9 +119,9 @@ fn main() {
                 control_flow.set_exit();
             }
 
-            // if let Some(scale_factor) = input.scale_factor() {
-            //todo update scaling factor in GUI
-            // }
+            if let Some(scale_factor) = input.scale_factor() {
+                gui.scale_factor(scale_factor);
+            }
 
             if let Some(size) = input.window_resized() {
                 //resize pixels and gui here
@@ -124,6 +130,8 @@ fn main() {
                     *control_flow = ControlFlow::Exit;
                     return;
                 }
+
+                gui.resize(size.width, size.height);
             }
 
             //reset before input is checked again
@@ -166,33 +174,18 @@ fn main() {
                     break;
                 }
             }
-
-            //todo:
-            // should be using a timer, subtracting time used to actually process instruction
-            // then only spin waiting for the time remaining
-            // always use multiples of 4 cycles, this will make timing a bit easier
-            // all instructions take multiples of 4 cycles
-
-            // spin_sleep::sleep(cycle_duration * cycle_cost);
-            cycle_count_since_last_yield += frame_cycles;
-
-            // this is so that the emulator doesn't hog the cpu and get punished
-            // by the scheduler
-            if cycle_count_since_last_yield >= cycles_per_yield {
-                cycle_count_since_last_yield = 0;
-                // thread::yield_now();
-            }
         }
 
         match event {
-            Event::WindowEvent { .. } => {
+            Event::WindowEvent { event, .. } => {
                 if is_gui_active {
-                    // todo pass to gui
+                    gui.handle_event(&event);
                 }
             }
             Event::RedrawRequested(_) => {
-                // todo pixels and gui rendering
-                // respect is_gui_active
+                if is_gui_active {
+                    gui.prepare(&window);
+                }
 
                 // draw image to 'pixels' buffer and flip buffer
                 //might turn this into a 'get image' func and have pixels lib
@@ -215,6 +208,10 @@ fn main() {
 
                 let render_result = pixels.render_with(|encoder, render_target, context| {
                     context.scaling_renderer.render(encoder, render_target);
+
+                    if is_gui_active {
+                        gui.render(encoder, render_target, context);
+                    }
                     Ok(())
                 });
 
@@ -312,7 +309,12 @@ fn handle_keyboard_input(input: &WinitInputHelper, input_state: &mut InputState)
 }
 
 fn handle_gamepad_input(gilrs: &mut Gilrs, input_state: &mut InputState, turbo: &mut bool) {
-    while let Some(gilrs::Event { id: _, event, time: _}) = gilrs.next_event() {
+    while let Some(gilrs::Event {
+        id: _,
+        event,
+        time: _,
+    }) = gilrs.next_event()
+    {
         match event {
             gilrs::EventType::ButtonPressed(btn, _) => match btn {
                 gilrs::Button::South => {
