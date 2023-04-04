@@ -189,7 +189,7 @@ fn main() {
                     control_flow.set_exit();
                 }
 
-                if !turbo {
+                if !turbo && *control_flow == ControlFlow::Poll {
                     let elapsed = time::Instant::now() - start_time;
                     if elapsed < target_loop_duration {
                         thread::sleep(target_loop_duration - elapsed);
