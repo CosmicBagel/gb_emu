@@ -256,7 +256,8 @@ impl Cpu {
         }
 
         //copy first memory block into position
-        for i in 0..0x7fff {
+        let end = std::cmp::min(self.rom.len(), 0x7fff);
+        for i in 0..end {
             self.mem[i] = self.rom[i];
         }
 
