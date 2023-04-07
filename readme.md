@@ -37,7 +37,8 @@ cargo run cpu_instrs.gb
 ---
 ## Linux notes:
 
-- Requires vulkan support (will not work in WSL2)
+- Requires vulkan support ~~(will not work in WSL2)~~
+  - For WSL2 install `vulkan-tools` before building
 - Requires dev libraries `libglib2.0-dev libgtk-3-dev libudev-dev`
   - eg `apt install libglib2.0-dev libgtk-3-dev libudev-dev` on Ubuntu 22.04 LTS
 - Your milage may vary depending on distro `¯\_(ツ)_/¯`
